@@ -16,6 +16,5 @@
 | Admin | AdminJS on the API | Users, payments, plans |
 | Hosting | Railway | MySQL + `slam-api` + `slam-web` |
 | Local DB access | Railway public TCP proxy | `*.proxy.rlwy.net` + proxy port |
-| Maps in SMS | Google Maps query URL | No API key |
-| Maps on web (later) | Maps JavaScript API | Premium history |
+| Maps | Later | SMS map links and web map UI when we reach that work |
 | Git | GitHub `main` / `dev` | Source of truth |
