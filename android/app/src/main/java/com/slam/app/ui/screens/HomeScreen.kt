@@ -29,7 +29,12 @@ import com.slam.app.BuildConfig
 import com.slam.app.data.SessionStore
 import com.slam.app.data.remote.SlamApiFactory
 import com.slam.app.data.remote.SubscriptionInfo
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import com.slam.app.security.PinStore
+import com.slam.app.service.SlamListenerService
 import com.slam.app.ui.components.SlamCard
+import com.slam.app.ui.components.SlamField
 import com.slam.app.ui.components.SlamModal
 import com.slam.app.ui.components.SlamPrimaryButton
 import com.slam.app.ui.components.SlamSkeleton
@@ -44,11 +49,15 @@ fun HomeScreen(onSignedOut: () -> Unit) {
     val store = remember { SessionStore(context) }
     val scope = rememberCoroutineScope()
 
+    val pinStore = remember { PinStore(context) }
     var name by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var subscription by remember { mutableStateOf<SubscriptionInfo?>(null) }
     var sheetOpen by remember { mutableStateOf(false) }
     var confirmSignOut by remember { mutableStateOf(false) }
+    var pinReady by remember { mutableStateOf(pinStore.hasPin()) }
+    var pinInput by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf<String?>(null) }
     var permissionNote by remember { mutableStateOf("SMS and location permissions are required for tracking.") }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -56,9 +65,12 @@ fun HomeScreen(onSignedOut: () -> Unit) {
     ) { result ->
         val granted = result.values.count { it }
         permissionNote = if (granted == result.size) {
-            "Permissions granted. SMS tracking will be enabled in the next update."
+            "Permissions granted. Tracking is listening for SLAM commands."
         } else {
             "Some permissions were denied. Tracking needs SMS and location access."
+        }
+        if (granted == result.size && pinStore.hasPin()) {
+            SlamListenerService.start(context)
         }
     }
 
@@ -123,6 +135,51 @@ fun HomeScreen(onSignedOut: () -> Unit) {
             Spacer(Modifier.height(12.dp))
             SlamCard {
                 Column(Modifier.padding(20.dp)) {
+                    Text("Tracking PIN", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(8.dp))
+                    if (pinReady) {
+                        Text(
+                            "PIN is saved on this device. Send: SLAM <PIN> LOCATE",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        SlamPrimaryButton(
+                            text = "Keep listening",
+                            onClick = { SlamListenerService.start(context) },
+                        )
+                    } else {
+                        Text(
+                            "Set a 4–6 digit PIN. Only this PIN can request location by SMS.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        SlamField(
+                            value = pinInput,
+                            onValueChange = { value ->
+                                if (value.length <= 6 && value.all { it.isDigit() }) pinInput = value
+                            },
+                            label = "PIN",
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        SlamPrimaryButton(
+                            text = "Save PIN",
+                            onClick = {
+                                if (pinStore.setPin(pinInput)) {
+                                    pinReady = true
+                                    pinError = null
+                                    SlamListenerService.start(context)
+                                } else {
+                                    pinError = "PIN must be 4 to 6 digits"
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            SlamCard {
+                Column(Modifier.padding(20.dp)) {
                     Text("Permissions", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(8.dp))
                     Text(permissionNote, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -151,6 +208,17 @@ fun HomeScreen(onSignedOut: () -> Unit) {
         SlamTextButton(text = "Sign out", onClick = { confirmSignOut = true })
     }
 
+    pinError?.let { message ->
+        SlamModal(
+            title = "Invalid PIN",
+            message = message,
+            confirmLabel = "OK",
+            cancelLabel = "",
+            onConfirm = { pinError = null },
+            onDismiss = { pinError = null },
+        )
+    }
+
     if (sheetOpen) {
         ModalBottomSheet(
             onDismissRequest = { sheetOpen = false },
@@ -160,7 +228,7 @@ fun HomeScreen(onSignedOut: () -> Unit) {
                 Text("How tracking works", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "A trusted contact texts SLAM followed by your PIN and LOCATE. " +
+                    "Text SLAM, then your PIN, then LOCATE. Example: SLAM 1234 LOCATE. " +
                         "This phone replies with coordinates and a map link. Internet is not required for that loop.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

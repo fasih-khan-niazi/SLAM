@@ -10,7 +10,15 @@ Kotlin + Jetpack Compose. Min SDK 33 (Android 13+). Dark theme by default.
 4. Connect the Oppo F19 with USB debugging on.
 5. Run the `app` configuration.
 
-First install is UI-only for SMS: splash → consent → login → home + permission prompt. The SMS location loop is Phase 4.
+First install: splash → consent → login → home. Set a PIN, grant SMS + location, tap **Keep listening**.
+
+From the second SIM send:
+
+```
+SLAM 1234 LOCATE
+```
+
+(use your real PIN). The first SIM should reply with coordinates and a Maps link. Internet is not required for that loop.
 
 ## API URL on a physical phone
 
