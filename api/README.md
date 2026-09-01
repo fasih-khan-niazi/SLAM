@@ -10,3 +10,5 @@ npm run dev
 ```
 
 See [docs/env-setup.md](../docs/env-setup.md) for Railway MySQL (public proxy locally, private host on Railway).
+
+After the server starts, run the checks in [docs/api-testing.md](../docs/api-testing.md).

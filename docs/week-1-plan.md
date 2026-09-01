@@ -19,6 +19,8 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | Migrate previous API into `api/` (no secrets, no `node_modules`) | P0 |
 | Git: `main` + `dev`, `.gitignore`, `.env.example` | P0 |
 
+**Status:** Complete.
+
 **Done when:** `api` starts, AdminJS loads, plans seed, no secrets in git.
 
 ---
@@ -37,7 +39,9 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | Admin role guard on payment approve/reject | P1 |
 | Health check `/health` | P1 |
 
-**Done when:** Auth + plans + location can be called with Postman against local API.
+**Status:** Complete.
+
+**Done when:** Auth + plans + location can be called against the local API. See [api-testing.md](api-testing.md).
 
 ---
 

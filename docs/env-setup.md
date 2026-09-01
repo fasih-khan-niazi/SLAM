@@ -81,6 +81,8 @@ npm run dev
 
 Admin login: `admin@slam.com` / `Password123`
 
+Then follow [api-testing.md](api-testing.md).
+
 ## Railway services (deploy later)
 
 | Service | Root directory | Notes |

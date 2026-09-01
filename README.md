@@ -41,6 +41,7 @@ npm run dev
 | [docs/week-2-plan.md](docs/week-2-plan.md) | Phases 8–13 |
 | [docs/env-setup.md](docs/env-setup.md) | Railway MySQL, env vars, local vs deploy |
 | [docs/design-system.md](docs/design-system.md) | Shared UI tokens |
+| [docs/api-testing.md](docs/api-testing.md) | Local API checks |
 
 ## Git
 
