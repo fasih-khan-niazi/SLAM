@@ -2,6 +2,7 @@ const AdminJS = require('adminjs').default || require('adminjs')
 const AdminJSExpress = require('@adminjs/express')
 const AdminJSSequelize = require('@adminjs/sequelize')
 const { sendEmail } = require('../utils/email')
+const { cancelOtherActiveSubscriptions } = require('../utils/subscription')
 const {
   User,
   SubscriptionPlan,
@@ -69,6 +70,8 @@ const admin = new AdminJS({
                 const today = new Date()
                 const endDate = new Date()
                 endDate.setDate(endDate.getDate() + 30)
+
+                await cancelOtherActiveSubscriptions(payment.user_id, payment.subscription_id)
 
                 await Subscription.update(
                   { status: 'active', start_date: today, end_date: endDate },
