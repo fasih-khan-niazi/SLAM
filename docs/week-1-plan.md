@@ -77,6 +77,8 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | Foreground service so Android 13 does not kill the listener | P0 |
 | Battery: location only while fulfilling a request | P1 |
 
+**Status:** Complete.
+
 **Done when:** SIM 2 sends the command to SIM 1 and a location SMS comes back.
 
 ---

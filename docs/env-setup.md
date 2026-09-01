@@ -29,13 +29,13 @@ Follow this exactly:
 
 8. If you just enabled the proxy, **redeploy MySQL** once (service ⋮ → Restart / Redeploy).
 
-Put those values in **local** `api/.env` only:
+Put those values in **local** `api/.env` only. Your project currently exposes:
 
 ```
-DB_HOST=xxxx.proxy.rlwy.net
-DB_PORT=15140
+DB_HOST=interchange.proxy.rlwy.net
+DB_PORT=17889
 DB_USER=root
-DB_PASS=<MYSQLPASSWORD from Variables>
+DB_PASS=<MYSQLPASSWORD from MySQL → Variables>
 DB_NAME=railway
 ```
 

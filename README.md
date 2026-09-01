@@ -42,6 +42,7 @@ npm run dev
 | [docs/env-setup.md](docs/env-setup.md) | Railway MySQL, env vars, local vs deploy |
 | [docs/design-system.md](docs/design-system.md) | Shared UI tokens |
 | [docs/api-testing.md](docs/api-testing.md) | Local API checks |
+| [docs/stack.md](docs/stack.md) | Tools and technologies |
 
 ## Git
 
