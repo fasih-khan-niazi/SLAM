@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local-only source material
+old-backend/
+SLAM FYP Doc.md
+SLAM_Hameed_Complete_Guide.md
+
+# Uploads and generated assets
+uploads/
+api/uploads/
+.adminjs/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+*.iml
+
+# Web
+web/dist/
+web/build/
+web/.vite/
+
+# Editors and OS
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
