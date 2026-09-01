@@ -9,12 +9,41 @@ SLAM uses **one Railway MySQL** and **two connection modes**. Do not install a l
 | Your PC | Railway **public TCP proxy** | `mysql.railway.internal` is not reachable from Windows |
 | Railway (`slam-api`) | `${{MySQL.MYSQLHOST}}` → `mysql.railway.internal` | Private network, faster, not exposed |
 
-### Public proxy (local development)
+### Public TCP proxy (required on your PC)
 
-1. Railway → project → **MySQL** → **Connect** → **Public Networking** (enable TCP proxy).
-2. Copy the **public host and port** (not `mysql.railway.internal`).
-3. Put those values in `api/.env` as `DB_HOST` and `DB_PORT`.
-4. User, password, and database name stay the same (`root`, your MySQL password, `railway`).
+`mysql.railway.internal` only works **inside Railway**. Your laptop must use a **public proxy host** (looks like `xxx.proxy.rlwy.net`) and a **proxy port** (not `3306`).
+
+Follow this exactly:
+
+1. Open [railway.app](https://railway.app) → your SLAM project.
+2. Click the **MySQL** service (the database card, not `slam-api`).
+3. Open **Settings** → **Networking**.
+4. Under **TCP Proxy**, click **TCP Proxy** / **Enable**.
+5. Internal port: **`3306`** (MySQL’s port inside Railway).
+6. Railway shows something like `shuttle.proxy.rlwy.net:15140`.
+   - Host = the domain (`….proxy.rlwy.net`)
+   - Port = the number **after** the colon (e.g. `15140`)
+7. Optional check: **MySQL** → **Connect** → **Public** / **Public Networking**. You should see a URL such as:
+
+   `mysql://root:PASSWORD@xxxx.proxy.rlwy.net:15140/railway`
+
+8. If you just enabled the proxy, **redeploy MySQL** once (service ⋮ → Restart / Redeploy).
+
+Put those values in **local** `api/.env` only:
+
+```
+DB_HOST=xxxx.proxy.rlwy.net
+DB_PORT=15140
+DB_USER=root
+DB_PASS=<MYSQLPASSWORD from Variables>
+DB_NAME=railway
+```
+
+**Do not** use `mysql.railway.internal` or port `3306` in `api/.env` on Windows.
+
+Also on **Variables** you may see `MYSQL_PUBLIC_URL` or `RAILWAY_TCP_PROXY_DOMAIN` + `RAILWAY_TCP_PROXY_PORT` — those are the same public host/port.
+
+Deployed `slam-api` on Railway should keep using **private** references (`${{MySQL.MYSQLHOST}}`), not the public proxy.
 
 Keep the internal URL for the deployed service only. Reference variables on `slam-api`:
 

@@ -58,6 +58,8 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | Skeleton loaders, custom modals, haptics on primary actions | P1 |
 | Polished login screen | P0 |
 
+**Status:** Complete.
+
 **Done when:** APK installs on Oppo F19 and the UI shell feels finished, not placeholder.
 
 ---
