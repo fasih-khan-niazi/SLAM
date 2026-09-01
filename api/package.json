@@ -1,0 +1,32 @@
+{
+  "name": "slam-api",
+  "version": "1.0.0",
+  "description": "SLAM REST API and admin panel",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "node --watch app.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["slam", "location", "sms"],
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "@adminjs/express": "^5.1.0",
+    "@adminjs/sequelize": "^3.0.0",
+    "adminjs": "^7.8.13",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "express-session": "^1.19.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "mysql2": "^3.22.5",
+    "nodemailer": "^8.0.11",
+    "sequelize": "^6.37.8"
+  }
+}
