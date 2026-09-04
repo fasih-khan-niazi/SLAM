@@ -52,6 +52,17 @@ npm run dev
 
 Open **`F:\SLAM\android`** (not the repo root) in Android Studio. Full steps: [android/README.md](android/README.md).
 
+## Web portal
+
+```powershell
+cd f:\SLAM\web
+copy .env.example .env
+npm install
+npm run dev
+```
+
+http://localhost:5173 — API must already be on port 3000.
+
 ## Docs
 
 | File | Contents |
@@ -59,6 +70,7 @@ Open **`F:\SLAM\android`** (not the repo root) in Android Studio. Full steps: [a
 | [docs/week-1-plan.md](docs/week-1-plan.md) | Phases 1–7 and Phase A |
 | [docs/phase-a.md](docs/phase-a.md) | A1–A3 to close Week 1 |
 | [docs/week-2-plan.md](docs/week-2-plan.md) | Phases 8–13 |
+| [docs/deploy.md](docs/deploy.md) | Railway `slam-api` / `slam-web` |
 | [docs/env-setup.md](docs/env-setup.md) | Railway MySQL, env vars, local vs deploy |
 | [docs/design-system.md](docs/design-system.md) | Shared UI tokens |
 | [docs/api-testing.md](docs/api-testing.md) | Local API checks |

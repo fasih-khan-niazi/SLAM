@@ -4,7 +4,7 @@
 **When:** After Phase 4 code (SMS loop) — delivery on a topped-up SIM is your test later, not a blocker for this coding.  
 **Not in Phase A:** Payments, Cloudinary, Maps UI, admin config page, stealth, emergency mode (Week 2).
 
-Work **one slice at a time**. Do not start A2 until A1 is in `dev`. Do not start A3 until A2 runs against local API.
+**Status:** A1–A3 **code and docs are in the repo**. You still click Railway to create `slam-api` / `slam-web` (see [deploy.md](deploy.md)). Tag Week 1 when you ask.
 
 ---
 
@@ -23,9 +23,11 @@ Work **one slice at a time**. Do not start A2 until A1 is in `dev`. Do not start
 | A1.7 | Settings: last 10 on-device locations (Room already writes them) | P2 |
 | A1.8 | Optional: accuracy preference (GPS first vs battery) if time | P2 |
 
-**Done when:** A number on the list gets a reply; an unknown number does not; PIN change works after rebuild.
+**Code:** Settings screen, Room v2 (trusted numbers + failed PIN, migration keeps last-10 history), SMS gate, battery preference.
 
-**App doc:** Update `android/README.md` (settings, trusted list, command format).
+**Done when:** Rebuild the app. A number on the list gets a reply; an unknown number does not; PIN change works.
+
+**App doc:** `android/README.md` (settings, trusted list, command format).
 
 ---
 
@@ -40,6 +42,8 @@ Work **one slice at a time**. Do not start A2 until A1 is in `dev`. Do not start
 | A2.3 | Login + register (API URL default `http://localhost:3000`) | P0 |
 | A2.4 | Public plans page (`GET /api/plans`) | P0 |
 | A2.5 | After login: show plan name / remaining from `GET /api/user/subscription` | P1 |
+
+**Code:** Vite + React in `web/` (theme tokens, login, register, plans, account home).
 
 **Done when:** Register → login → see Free/Basic/Premium in the browser with API running locally.
 
@@ -59,6 +63,8 @@ Work **one slice at a time**. Do not start A2 until A1 is in `dev`. Do not start
 | A3.4 | Smoke: register → login → list plans against Railway | P0 |
 | A3.5 | Debug APK (`Build → APK`); testers set API URL to Railway in the login field | P1 |
 | A3.6 | Phone login against Railway (SMS loop unchanged) | P1 |
+
+**Code:** `api/railway.toml`, `GET /api/config`, Helmet (CSP off for AdminJS), CORS extras, [deploy.md](deploy.md). You create the Railway service and paste env refs — nothing secret is in git.
 
 **Done when:** Someone can use the portal on the Railway API URL and install a debug APK. SMS proof stays “when SIM 1 has credit.”
 

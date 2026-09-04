@@ -24,6 +24,14 @@ Invoke-RestMethod "$base/api/plans"
 
 Expect Free, Basic, Premium.
 
+## 2b. Public config (no token)
+
+```powershell
+Invoke-RestMethod "$base/api/config"
+```
+
+Expect `sms_prefix: SLAM` and `maintenance: false`.
+
 ## 3. Register
 
 ```powershell

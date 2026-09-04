@@ -61,7 +61,7 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Item | Priority |
 |------|----------|
 | `SystemConfig` table + AdminJS config page | P0 |
-| Public config endpoint (safe fields only) | P1 |
+| Public config endpoint (safe fields only) — stub is `GET /api/config`; wire to `SystemConfig` | P1 |
 | In-app notification list API | P0 |
 | Admin notification on new payment | P1 |
 | Settings: SMS prefix, limits, maintenance, email toggle, PIN attempt cap | P0 |

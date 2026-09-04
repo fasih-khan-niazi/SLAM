@@ -93,7 +93,7 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | **A2** | 6 | React login / register / plans vs local API |
 | **A3** | 7 | `slam-api` on Railway, portal + APK use that URL |
 
-Do A1 → A2 → A3. Tag Week 1 after A3 when you ask.
+A1–A3 implemented in the repo. Tag Week 1 after A3 when you ask. You still create the Railway `slam-api` service (dashboard). See [phase-a.md](phase-a.md) and [deploy.md](deploy.md).
 
 ---
 
@@ -108,6 +108,8 @@ Do A1 → A2 → A3. Tag Week 1 after A3 when you ask.
 | Wrong PIN: no reply, failed attempt logged | P0 |
 | Error SMS when location unavailable (no secrets leaked) | P1 |
 | Last 10 locations stored on device | P2 |
+
+**Status:** Code complete (rebuild the app to pick up Settings).
 
 **Done when:** Trusted number works, unknown number is ignored, settings persist.
 
@@ -125,6 +127,8 @@ Do A1 → A2 → A3. Tag Week 1 after A3 when you ask.
 | Public plans page | P0 |
 | Auth against local API | P1 |
 
+**Status:** Code complete. Run `web` against local API.
+
 **Done when:** A user can register, log in, and view plans in the browser.
 
 ---
@@ -140,6 +144,8 @@ Do A1 → A2 → A3. Tag Week 1 after A3 when you ask.
 | Android debug build against Railway API (login only; SMS stays local) | P1 |
 | Smoke test: register → login → list plans | P0 |
 | Signed debug APK for testers | P1 |
+
+**Status:** Deploy files and docs ready. Create `slam-api` in the Railway dashboard ([deploy.md](deploy.md)).
 
 **Done when:** Portal and API work on Railway; SMS loop still proven on the phone.
 
