@@ -2,6 +2,7 @@ require('dotenv').config()
 
 const express = require('express')
 const cors = require('cors')
+const helmet = require('helmet')
 const path = require('path')
 const { syncDatabase, sequelize } = require('./models')
 
@@ -17,9 +18,26 @@ const PORT = process.env.PORT || 3000
 
 app.set('trust proxy', 1)
 
+// AdminJS uses inline scripts; keep Helmet on, leave CSP off until Phase 12.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}))
+
+function originValue(value) {
+  return String(value || '').trim().replace(/\/$/, '')
+}
+
+const extraOrigins = String(process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(originValue)
+  .filter(Boolean)
+
 const allowedOrigins = [
-  process.env.FRONTEND_URL,
+  originValue(process.env.FRONTEND_URL),
+  ...extraOrigins,
   'http://localhost:5173',
+  'http://localhost:4173',
   'http://localhost:3000',
 ].filter(Boolean)
 
@@ -65,6 +83,7 @@ async function startServer() {
   app.use('/api', require('./routes/plans'))
   app.use('/api', require('./routes/payments'))
   app.use('/api', require('./routes/location'))
+  app.use('/api', require('./routes/config'))
 
   app.use((err, req, res, next) => {
     if (err && err.message === 'Not allowed by CORS') {
@@ -94,8 +113,8 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`SLAM API  http://localhost:${PORT}`)
-    console.log(`LAN       http://192.168.100.7:${PORT}`)
     console.log(`Admin     http://localhost:${PORT}/admin`)
+    console.log('Listening on 0.0.0.0 (LAN phones can use this PC’s IPv4)')
   })
 }
 
