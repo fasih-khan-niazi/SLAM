@@ -77,13 +77,27 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | Foreground service so Android 13 does not kill the listener | P0 |
 | Battery: location only while fulfilling a request | P1 |
 
-**Status:** Complete.
+**Status:** Code complete. On-device: location SMS was **composed** (accurate coords + Maps link). **Delivery** waits on SIM 1 SMS credit (your test later).
 
-**Done when:** SIM 2 sends the command to SIM 1 and a location SMS comes back.
+**Done when:** Requester’s inbox shows the reply. Not a coding blocker for Phase A.
 
 ---
 
-## Phase 5 — Device security and settings
+## Phase A — Close Week 1 (Phases 5–7)
+
+**Goal:** Settings + trusted numbers, React portal, Railway API + debug APK — as **one** incremental close. Detail: [phase-a.md](phase-a.md).
+
+| Slice | Old phase | Outcome |
+|-------|-----------|---------|
+| **A1** | 5 | Trusted numbers, settings, safe failures |
+| **A2** | 6 | React login / register / plans vs local API |
+| **A3** | 7 | `slam-api` on Railway, portal + APK use that URL |
+
+Do A1 → A2 → A3. Tag Week 1 after A3 when you ask.
+
+---
+
+## Phase 5 — Device security and settings (Phase A / A1)
 
 **Goal:** Owner controls who can track, and failures are handled cleanly.
 
@@ -99,7 +113,7 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 
 ---
 
-## Phase 6 — Web portal shell
+## Phase 6 — Web portal shell (Phase A / A2)
 
 **Goal:** User-facing React app that matches the Android look.
 
@@ -115,7 +129,7 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 
 ---
 
-## Phase 7 — Week 1 integration
+## Phase 7 — Week 1 integration (Phase A / A3)
 
 **Goal:** API on Railway; app and portal talk to it.
 

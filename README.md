@@ -56,7 +56,8 @@ Open **`F:\SLAM\android`** (not the repo root) in Android Studio. Full steps: [a
 
 | File | Contents |
 |------|----------|
-| [docs/week-1-plan.md](docs/week-1-plan.md) | Phases 1–7 |
+| [docs/week-1-plan.md](docs/week-1-plan.md) | Phases 1–7 and Phase A |
+| [docs/phase-a.md](docs/phase-a.md) | A1–A3 to close Week 1 |
 | [docs/week-2-plan.md](docs/week-2-plan.md) | Phases 8–13 |
 | [docs/env-setup.md](docs/env-setup.md) | Railway MySQL, env vars, local vs deploy |
 | [docs/design-system.md](docs/design-system.md) | Shared UI tokens |

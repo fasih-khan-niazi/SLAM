@@ -5,6 +5,8 @@ Kotlin + Jetpack Compose. Min SDK 33 (Android 13+). Dark theme by default.
 Open **this folder** in Android Studio: `F:\SLAM\android`  
 Do **not** open `F:\SLAM` as the Gradle project. The app module lives under `android/`.
 
+**Status (Week 1):** On Oppo F19 via wireless debug. Consent, admin login, PIN, permissions, listener notification work. Locate produced an accurate SMS body (coords + Maps link). Outbound **delivery** needs SMS credit on SIM 1.
+
 ---
 
 ## 1. One-time Android Studio setup
