@@ -15,6 +15,7 @@ class SessionStore(private val context: Context) {
     val token: Flow<String> = context.dataStore.data.map { it[KEY_TOKEN] ?: "" }
     val displayName: Flow<String> = context.dataStore.data.map { it[KEY_NAME] ?: "" }
     val apiBaseUrl: Flow<String> = context.dataStore.data.map { it[KEY_API] ?: "" }
+    val preferBattery: Flow<Boolean> = context.dataStore.data.map { it[KEY_BATTERY] ?: false }
 
     suspend fun setConsent(accepted: Boolean) {
         context.dataStore.edit { it[KEY_CONSENT] = accepted }
@@ -31,6 +32,10 @@ class SessionStore(private val context: Context) {
         context.dataStore.edit { it[KEY_API] = url.trim().trimEnd('/') }
     }
 
+    suspend fun setPreferBattery(value: Boolean) {
+        context.dataStore.edit { it[KEY_BATTERY] = value }
+    }
+
     suspend fun clearSession() {
         context.dataStore.edit {
             it.remove(KEY_TOKEN)
@@ -43,5 +48,6 @@ class SessionStore(private val context: Context) {
         val KEY_TOKEN = stringPreferencesKey("token")
         val KEY_NAME = stringPreferencesKey("name")
         val KEY_API = stringPreferencesKey("api_base")
+        val KEY_BATTERY = booleanPreferencesKey("prefer_battery")
     }
 }

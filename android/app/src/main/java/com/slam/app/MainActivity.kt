@@ -26,6 +26,7 @@ import com.slam.app.ui.screens.ConsentScreen
 import com.slam.app.ui.screens.HomeScreen
 import com.slam.app.ui.screens.LoginScreen
 import com.slam.app.ui.screens.RegisterScreen
+import com.slam.app.ui.screens.SettingsScreen
 import com.slam.app.ui.screens.SplashScreen
 import com.slam.app.ui.theme.SlamTheme
 import kotlinx.coroutines.flow.first
@@ -104,12 +105,16 @@ class MainActivity : ComponentActivity() {
                         }
                         composable(SlamRoutes.HOME) {
                             HomeScreen(
+                                onOpenSettings = { nav.navigate(SlamRoutes.SETTINGS) },
                                 onSignedOut = {
                                     nav.navigate(SlamRoutes.LOGIN) {
                                         popUpTo(SlamRoutes.HOME) { inclusive = true }
                                     }
-                                }
+                                },
                             )
+                        }
+                        composable(SlamRoutes.SETTINGS) {
+                            SettingsScreen(onBack = { nav.popBackStack() })
                         }
                     }
                 }

@@ -5,7 +5,7 @@ Kotlin + Jetpack Compose. Min SDK 33 (Android 13+). Dark theme by default.
 Open **this folder** in Android Studio: `F:\SLAM\android`  
 Do **not** open `F:\SLAM` as the Gradle project. The app module lives under `android/`.
 
-**Status (Week 1):** On Oppo F19 via wireless debug. Consent, admin login, PIN, permissions, listener notification work. Locate produced an accurate SMS body (coords + Maps link). Outbound **delivery** needs SMS credit on SIM 1.
+**Status (Week 1 / Phase A):** On Oppo F19 via wireless debug. Consent, admin login, PIN, permissions, listener notification work. Locate produced an accurate SMS body (coords + Maps link). Outbound **delivery** needs SMS credit on SIM 1. Settings, trusted numbers, failed-PIN log, last-10 history, and battery preference are in the app (rebuild to pick them up).
 
 ---
 
@@ -102,7 +102,8 @@ If install is blocked: phone → **Install anyway** / allow the computer.
      ```
 
      Use the **IPv4** of the Wi‑Fi adapter (example `192.168.1.24`). PC and phone on the **same Wi‑Fi**. Windows Firewall: allow Node on private networks if login cannot connect.
-   - Register a user (name, email, password 8+, phone) or sign in.
+   - After `slam-api` is on Railway, you can put that `https://…` URL here instead (no path).
+   - Register a user (name, email, password 8+, phone) or sign in. The same API URL field is on **Create account**.
 3. **Home**
    - **Tracking PIN** — enter 4–6 digits → **Save PIN**. Remember it.
    - **Allow SMS and location** — Allow all (SMS, location, notifications).
@@ -117,7 +118,12 @@ If install is blocked: phone → **Install anyway** / allow the computer.
      ```
 
      Replace `1234` with the PIN you saved.
-   - Wait up to ~30 seconds. SIM 2 should get a reply with coordinates. Wrong PIN = **no** reply.
+   - Wait up to ~30 seconds. SIM 2 should get a reply with coordinates. Wrong PIN = **no** reply (logged on device).
+5. **Settings** (from Home)
+   - Change PIN (current PIN required).
+   - Trusted numbers: empty list = anyone with the PIN; once you add a number, only those numbers get a reply.
+   - Prefer battery: skip GPS-first (also automatic below 15% battery).
+   - Recent locations: last 10 replies stored on this phone.
 
 Oppo may kill background apps. If SMS never wakes SLAM:
 

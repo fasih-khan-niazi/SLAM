@@ -44,7 +44,10 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onSignedOut: () -> Unit) {
+fun HomeScreen(
+    onOpenSettings: () -> Unit,
+    onSignedOut: () -> Unit,
+) {
     val context = LocalContext.current
     val store = remember { SessionStore(context) }
     val scope = rememberCoroutineScope()
@@ -215,6 +218,7 @@ fun HomeScreen(onSignedOut: () -> Unit) {
         }
 
         Spacer(Modifier.height(16.dp))
+        SlamTextButton(text = "Settings", onClick = onOpenSettings)
         SlamTextButton(text = "How tracking works", onClick = { sheetOpen = true })
         SlamTextButton(text = "Sign out", onClick = { confirmSignOut = true })
     }
@@ -240,7 +244,8 @@ fun HomeScreen(onSignedOut: () -> Unit) {
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "Text SLAM, then your PIN, then LOCATE. Example: SLAM 1234 LOCATE. " +
-                        "This phone replies with coordinates and a map link. Internet is not required for that loop.",
+                        "This phone replies with coordinates and a map link. Internet is not required for that loop. " +
+                        "In Settings you can restrict requests to trusted numbers.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(24.dp))

@@ -18,10 +18,10 @@ import kotlin.coroutines.resume
 class LocationClient(private val context: Context) {
     private val fused = LocationServices.getFusedLocationProviderClient(context)
 
-    suspend fun acquire(): SlamFix? {
+    suspend fun acquire(preferBattery: Boolean = false): SlamFix? {
         if (!hasLocationPermission()) return cellFallback()
 
-        val batterySaver = batteryPercent() < 15
+        val batterySaver = preferBattery || batteryPercent() < 15
         if (!batterySaver) {
             requestFix(Priority.PRIORITY_HIGH_ACCURACY, 12_000L, "HIGH")?.let { return it }
         }
