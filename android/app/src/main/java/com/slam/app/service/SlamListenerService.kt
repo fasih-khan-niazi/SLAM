@@ -59,10 +59,10 @@ class SlamListenerService : Service() {
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText("Listening for location requests")
-            .setSmallIcon(R.drawable.ic_slam_mark)
+            .setSmallIcon(R.drawable.ic_notify)
             .setContentIntent(pending)
             .setOngoing(true)
-            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -82,20 +82,24 @@ class SlamListenerService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Tracking",
-            NotificationManager.IMPORTANCE_LOW,
+            NotificationManager.IMPORTANCE_DEFAULT,
         )
         manager.createNotificationChannel(channel)
     }
 
     companion object {
-        const val CHANNEL_ID = "slam_listener"
+        const val CHANNEL_ID = "slam_listener_visible"
         const val NOTIFICATION_ID = 41
         const val EXTRA_FROM = "from"
         const val EXTRA_BODY = "body"
 
-        fun start(context: Context) {
-            val intent = Intent(context, SlamListenerService::class.java)
-            context.startForegroundService(intent)
+        fun start(context: Context): Boolean {
+            return try {
+                context.startForegroundService(Intent(context, SlamListenerService::class.java))
+                true
+            } catch (_: Exception) {
+                false
+            }
         }
 
         fun locate(context: Context, from: String, body: String) {

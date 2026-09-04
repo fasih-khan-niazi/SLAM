@@ -58,6 +58,7 @@ fun HomeScreen(onSignedOut: () -> Unit) {
     var pinReady by remember { mutableStateOf(pinStore.hasPin()) }
     var pinInput by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
+    var listenerNote by remember { mutableStateOf<String?>(null) }
     var permissionNote by remember { mutableStateOf("SMS and location permissions are required for tracking.") }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -145,8 +146,18 @@ fun HomeScreen(onSignedOut: () -> Unit) {
                         Spacer(Modifier.height(16.dp))
                         SlamPrimaryButton(
                             text = "Keep listening",
-                            onClick = { SlamListenerService.start(context) },
+                            onClick = {
+                                listenerNote = if (SlamListenerService.start(context)) {
+                                    "Listener started. Pull down the notification shade — you should see SLAM."
+                                } else {
+                                    "Could not start the listener. Allow notifications for SLAM in system settings."
+                                }
+                            },
                         )
+                        listenerNote?.let {
+                            Spacer(Modifier.height(10.dp))
+                            Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     } else {
                         Text(
                             "Set a 4–6 digit PIN. Only this PIN can request location by SMS.",
