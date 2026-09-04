@@ -92,8 +92,9 @@ async function startServer() {
     })
   })
 
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`SLAM API  http://localhost:${PORT}`)
+    console.log(`LAN       http://192.168.100.7:${PORT}`)
     console.log(`Admin     http://localhost:${PORT}/admin`)
   })
 }
