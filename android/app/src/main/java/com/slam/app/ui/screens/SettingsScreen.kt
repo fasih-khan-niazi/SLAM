@@ -35,6 +35,7 @@ import com.slam.app.data.local.LocationHistoryEntity
 import com.slam.app.data.local.SlamDatabase
 import com.slam.app.data.local.TrustedNumberEntity
 import com.slam.app.security.PinStore
+import com.slam.app.sms.LocateRequestHandler
 import com.slam.app.sms.PhoneNumbers
 import com.slam.app.ui.components.SlamCard
 import com.slam.app.ui.components.SlamField
@@ -64,6 +65,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var contacts by remember { mutableStateOf(listOf<TrustedNumberEntity>()) }
     var history by remember { mutableStateOf(listOf<LocationHistoryEntity>()) }
     var failedCount by remember { mutableStateOf(0) }
+    var pinCap by remember { mutableStateOf(8) }
     var preferBattery by remember { mutableStateOf(false) }
 
     var currentPin by remember { mutableStateOf("") }
@@ -80,7 +82,10 @@ fun SettingsScreen(onBack: () -> Unit) {
         scope.launch {
             contacts = db.trustedNumbers().all()
             history = db.locationHistory().latest()
-            failedCount = db.failedPins().count()
+            val windowStart = System.currentTimeMillis() - LocateRequestHandler.PIN_WINDOW_MS
+            db.failedPins().deleteOlderThan(windowStart)
+            failedCount = db.failedPins().countSince(windowStart)
+            pinCap = session.cachedPinAttemptCap()
             preferBattery = session.preferBattery.first()
             loading = false
         }
@@ -138,6 +143,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                                     currentPin = ""
                                     newPin = ""
                                     pinMessage = "PIN updated."
+                                    scope.launch {
+                                        db.failedPins().clear()
+                                        reload()
+                                    }
                                 }
                             }
                         },
@@ -203,7 +212,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Failed PIN attempts logged: $failedCount",
+                        "Wrong PIN texts in the last 15 minutes: $failedCount of $pinCap. " +
+                            "After the cap, locates stay silent until the window resets. Updating the PIN clears the count.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

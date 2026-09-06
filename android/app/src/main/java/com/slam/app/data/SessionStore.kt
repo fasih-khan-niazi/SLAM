@@ -23,6 +23,7 @@ class SessionStore(private val context: Context) {
     val preferBattery: Flow<Boolean> = context.dataStore.data.map { it[KEY_BATTERY] ?: false }
     val cachedRemaining: Flow<Int> = context.dataStore.data.map { remainingAfterMonthRoll(it) }
     val cachedUnlimited: Flow<Boolean> = context.dataStore.data.map { (it[KEY_LIMIT] ?: 5) < 0 }
+    val pinAttemptCap: Flow<Int> = context.dataStore.data.map { it[KEY_PIN_CAP] ?: 8 }
 
     suspend fun setConsent(accepted: Boolean) {
         context.dataStore.edit { it[KEY_CONSENT] = accepted }
@@ -42,6 +43,13 @@ class SessionStore(private val context: Context) {
     suspend fun setPreferBattery(value: Boolean) {
         context.dataStore.edit { it[KEY_BATTERY] = value }
     }
+
+    suspend fun cacheProductConfig(pinCap: Int?) {
+        val cap = pinCap?.takeIf { it in 3..30 } ?: 8
+        context.dataStore.edit { it[KEY_PIN_CAP] = cap }
+    }
+
+    suspend fun cachedPinAttemptCap(): Int = pinAttemptCap.first()
 
     suspend fun clearSession() {
         context.dataStore.edit {
@@ -132,5 +140,6 @@ class SessionStore(private val context: Context) {
         val KEY_LIMIT = intPreferencesKey("monthly_limit")
         val KEY_MONTH = stringPreferencesKey("usage_month")
         val KEY_PERIOD_END = stringPreferencesKey("usage_period_end")
+        val KEY_PIN_CAP = intPreferencesKey("pin_attempt_cap")
     }
 }

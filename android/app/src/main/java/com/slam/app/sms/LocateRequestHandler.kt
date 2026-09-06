@@ -22,10 +22,24 @@ class LocateRequestHandler(private val context: Context) {
         val pinStore = PinStore(context)
         val session = SessionStore(context)
 
+        if (!session.consentAccepted.first()) {
+            return@withContext
+        }
+
+        val windowStart = System.currentTimeMillis() - PIN_WINDOW_MS
+        db.failedPins().deleteOlderThan(windowStart)
+        val recentFails = db.failedPins().countSince(windowStart)
+        val cap = session.cachedPinAttemptCap()
+        if (recentFails >= cap) {
+            return@withContext
+        }
+
         if (!pinStore.hasPin() || !pinStore.verify(command.pin)) {
             db.failedPins().insert(FailedPinEntity(requestedBy = from))
             return@withContext
         }
+
+        db.failedPins().clear()
 
         val trusted = db.trustedNumbers().all()
         if (trusted.isNotEmpty() && trusted.none { PhoneNumbers.matches(it.normalized.ifBlank { it.number }, from) }) {
@@ -71,5 +85,9 @@ class LocateRequestHandler(private val context: Context) {
         } catch (_: Exception) {
             // Offline: local cache already consumed.
         }
+    }
+
+    companion object {
+        const val PIN_WINDOW_MS = 15 * 60 * 1000L
     }
 }
