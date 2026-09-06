@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const { sequelize, User } = require('../models')
 const { protect } = require('../middleware/auth')
+const { rateLimit } = require('../middleware/rateLimit')
 const { ok, fail } = require('../utils/http')
 const {
   normalizeEmail,
@@ -20,8 +21,24 @@ const {
 const router = express.Router()
 
 function generateToken(userId) {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' })
+  return jwt.sign(
+    { id: userId },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+  )
 }
+
+const loginLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: 'Too many sign-in attempts. Try again in a few minutes.',
+})
+
+const registerLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  message: 'Too many accounts created from this network. Try again in a few minutes.',
+})
 
 function publicUser(user) {
   return {
@@ -56,7 +73,7 @@ async function subscriptionPayload(userId) {
   return formatSubscription(info.subscription, info.plan, info.requests_used)
 }
 
-router.post('/register', async (req, res) => {
+router.post('/register', registerLimit, async (req, res) => {
   const error = validateRegister(req.body)
   if (error) return fail(res, 400, error)
 
@@ -102,7 +119,7 @@ router.post('/register', async (req, res) => {
   }
 })
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimit, async (req, res) => {
   const error = validateLogin(req.body)
   if (error) return fail(res, 400, error)
 
