@@ -5,6 +5,8 @@ const SubscriptionPlan = require('./SubscriptionPlan')
 const Subscription = require('./Subscription')
 const Payment = require('./Payment')
 const LocationLog = require('./LocationLog')
+const SystemConfig = require('./SystemConfig')
+const Notification = require('./Notification')
 
 User.hasMany(Subscription, { foreignKey: 'user_id' })
 Subscription.belongsTo(User, { foreignKey: 'user_id' })
@@ -23,6 +25,9 @@ Payment.belongsTo(Subscription, { foreignKey: 'subscription_id' })
 
 User.hasMany(LocationLog, { foreignKey: 'user_id' })
 LocationLog.belongsTo(User, { foreignKey: 'user_id' })
+
+User.hasMany(Notification, { foreignKey: 'user_id' })
+Notification.belongsTo(User, { foreignKey: 'user_id' })
 
 async function seedPlans() {
   const count = await SubscriptionPlan.count()
@@ -57,6 +62,21 @@ async function seedPlans() {
   console.log('Subscription plans seeded')
 }
 
+async function seedSystemConfig() {
+  const count = await SystemConfig.count()
+  if (count > 0) return
+  await SystemConfig.create({
+    sms_prefix: 'SLAM',
+    pin_min_length: 4,
+    pin_max_length: 6,
+    pin_attempt_cap: 8,
+    maintenance: false,
+    payments_enabled: true,
+    maps_enabled: false,
+    email_enabled: true,
+  })
+}
+
 async function seedAdmin() {
   const email = process.env.ADMIN_EMAIL
   const password = process.env.ADMIN_PASSWORD
@@ -85,6 +105,7 @@ async function syncDatabase() {
     console.log('Tables synced')
     await seedPlans()
     await seedAdmin()
+    await seedSystemConfig()
   } catch (err) {
     console.error('Database connection failed:', err.message)
     process.exit(1)
@@ -99,4 +120,6 @@ module.exports = {
   Subscription,
   Payment,
   LocationLog,
+  SystemConfig,
+  Notification,
 }

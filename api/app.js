@@ -28,6 +28,17 @@ function originValue(value) {
   return String(value || '').trim().replace(/\/$/, '')
 }
 
+function hostnameOf(value) {
+  try {
+    const raw = String(value || '').trim()
+    if (!raw) return ''
+    const url = raw.includes('://') ? new URL(raw) : new URL(`https://${raw}`)
+    return url.hostname.toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
 const extraOrigins = String(process.env.CORS_ORIGINS || '')
   .split(',')
   .map(originValue)
@@ -42,14 +53,25 @@ const allowedOrigins = [
   'http://localhost:3000',
 ].filter(Boolean)
 
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin) return callback(null, true)
-    if (allowedOrigins.includes(origin)) return callback(null, true)
-    return callback(new Error('Not allowed by CORS'))
-  },
-  credentials: true,
-}))
+const allowedHosts = new Set(allowedOrigins.map(hostnameOf).filter(Boolean))
+
+app.use((req, res, next) => {
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true)
+      const originHost = hostnameOf(origin)
+      const requestHost = hostnameOf(req.get('host'))
+      // AdminJS lives on this same API host. Same-host browser posts must pass
+      // even when API_PUBLIC_URL is missing or does not match the public domain.
+      if (originHost && requestHost && originHost === requestHost) {
+        return callback(null, true)
+      }
+      if (allowedHosts.has(originHost)) return callback(null, true)
+      return callback(new Error('Not allowed by CORS'))
+    },
+    credentials: true,
+  })(req, res, next)
+})
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
@@ -85,6 +107,7 @@ async function startServer() {
   app.use('/api', require('./routes/payments'))
   app.use('/api', require('./routes/location'))
   app.use('/api', require('./routes/config'))
+  app.use('/api', require('./routes/notifications'))
 
   app.use((err, req, res, next) => {
     if (err && err.message === 'Not allowed by CORS') {

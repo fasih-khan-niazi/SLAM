@@ -2,6 +2,7 @@ const AdminJS = require('adminjs').default || require('adminjs')
 const AdminJSExpress = require('@adminjs/express')
 const AdminJSSequelize = require('@adminjs/sequelize')
 const { sendEmail } = require('../utils/email')
+const { notifyUser } = require('../utils/notify')
 const { cancelOtherActiveSubscriptions } = require('../utils/subscription')
 const {
   User,
@@ -9,6 +10,8 @@ const {
   Subscription,
   Payment,
   LocationLog,
+  SystemConfig,
+  Notification,
 } = require('../models')
 
 AdminJS.registerAdapter(AdminJSSequelize)
@@ -92,6 +95,12 @@ const admin = new AdminJS({
                 )
 
                 if (payment.User) {
+                  await notifyUser(
+                    payment.user_id,
+                    'Payment approved',
+                    `Your ${payment.plan ? payment.plan.name : ''} plan is now active.`,
+                    'payment',
+                  )
                   await sendEmail(
                     payment.User.email,
                     'Your SLAM subscription is active',
@@ -142,6 +151,12 @@ const admin = new AdminJS({
                 )
 
                 if (payment.User) {
+                  await notifyUser(
+                    payment.user_id,
+                    'Payment rejected',
+                    `We could not verify transaction ${payment.transaction_id}.`,
+                    'payment',
+                  )
                   await sendEmail(
                     payment.User.email,
                     'SLAM payment could not be verified',
@@ -172,6 +187,23 @@ const admin = new AdminJS({
         listProperties: ['id', 'user_id', 'latitude', 'longitude', 'accuracy', 'requested_by', 'createdAt'],
       },
     },
+    {
+      resource: SystemConfig,
+      options: {
+        listProperties: ['sms_prefix', 'maintenance', 'payments_enabled', 'email_enabled', 'pin_attempt_cap'],
+        actions: {
+          new: { isAccessible: false },
+          delete: { isAccessible: false },
+        },
+      },
+    },
+    {
+      resource: Notification,
+      options: {
+        listProperties: ['id', 'user_id', 'title', 'kind', 'read_at', 'createdAt'],
+        filterProperties: ['user_id', 'kind'],
+      },
+    },
   ],
   rootPath: '/admin',
   branding: {
@@ -195,7 +227,12 @@ const adminRouter = AdminJSExpress.buildAuthenticatedRouter(
   null,
   {
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
+    proxy: true,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    },
   }
 )
 
