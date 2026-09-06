@@ -4,6 +4,7 @@ const path = require('path')
 const fs = require('fs')
 const { protect, requireAdmin } = require('../middleware/auth')
 const { sendEmail } = require('../utils/email')
+const { cancelOtherActiveSubscriptions } = require('../utils/subscription')
 const {
   Payment,
   Subscription,
@@ -200,6 +201,8 @@ router.patch('/admin/payments/:id/approve', protect, requireAdmin, async (req, r
     const today = new Date()
     const endDate = new Date()
     endDate.setDate(endDate.getDate() + 30)
+
+    await cancelOtherActiveSubscriptions(payment.user_id, payment.subscription_id)
 
     await Subscription.update(
       {

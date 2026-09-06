@@ -1,8 +1,21 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
-const { User } = require('../models')
+const { sequelize, User } = require('../models')
 const { protect } = require('../middleware/auth')
+const { ok, fail } = require('../utils/http')
+const {
+  normalizeEmail,
+  normalizePhone,
+  validateRegister,
+  validateLogin,
+} = require('../utils/validation')
+const {
+  activateFreePlan,
+  getCurrentSubscription,
+  formatSubscription,
+  getActivePlanInfo,
+} = require('../utils/subscription')
 
 const router = express.Router()
 
@@ -20,99 +33,111 @@ function publicUser(user) {
   }
 }
 
+async function subscriptionPayload(userId) {
+  const current = await getCurrentSubscription(userId)
+
+  if (current && current.status !== 'active') {
+    const activeInfo = await getActivePlanInfo(userId)
+    return {
+      ...formatSubscription(current, current.plan, current.requests_used),
+      active_plan: formatSubscription(
+        activeInfo.subscription,
+        activeInfo.plan,
+        activeInfo.requests_used
+      ),
+    }
+  }
+
+  if (current) {
+    return formatSubscription(current, current.plan, current.requests_used)
+  }
+
+  const info = await getActivePlanInfo(userId)
+  return formatSubscription(info.subscription, info.plan, info.requests_used)
+}
+
 router.post('/register', async (req, res) => {
+  const error = validateRegister(req.body)
+  if (error) return fail(res, 400, error)
+
+  const name = String(req.body.name).trim()
+  const email = normalizeEmail(req.body.email)
+  const phone = normalizePhone(req.body.phone)
+  const password = req.body.password
+
+  const transaction = await sequelize.transaction()
+
   try {
-    const { name, email, password, phone } = req.body
-
-    if (!name || !email || !password || !phone) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, email, password and phone are required',
-        data: null,
-      })
-    }
-
-    const existing = await User.findOne({ where: { email } })
+    const existing = await User.findOne({ where: { email }, transaction })
     if (existing) {
-      return res.status(400).json({
-        success: false,
-        message: 'An account with this email already exists',
-        data: null,
-      })
+      await transaction.rollback()
+      return fail(res, 400, 'An account with this email already exists')
     }
 
-    const password_hash = await bcrypt.hash(password, 10)
-    const user = await User.create({ name, email, password_hash, phone })
-    const token = generateToken(user.id)
+    const user = await User.create(
+      {
+        name,
+        email,
+        password_hash: await bcrypt.hash(password, 10),
+        phone,
+      },
+      { transaction }
+    )
 
-    return res.status(201).json({
-      success: true,
-      message: 'Account created',
-      data: { token, user: publicUser(user) },
-    })
+    await activateFreePlan(user.id, transaction)
+    await transaction.commit()
+
+    const subscription = await subscriptionPayload(user.id)
+
+    return ok(
+      res,
+      'Account created',
+      { token: generateToken(user.id), user: publicUser(user), subscription },
+      201
+    )
   } catch (err) {
+    await transaction.rollback()
     console.error('Register error:', err)
-    return res.status(500).json({
-      success: false,
-      message: 'Unable to create account',
-      data: null,
-    })
+    return fail(res, 500, 'Unable to create account')
   }
 })
 
 router.post('/login', async (req, res) => {
+  const error = validateLogin(req.body)
+  if (error) return fail(res, 400, error)
+
   try {
-    const { email, password } = req.body
-
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email and password are required',
-        data: null,
-      })
-    }
-
+    const email = normalizeEmail(req.body.email)
     const user = await User.findOne({ where: { email } })
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password',
-        data: null,
-      })
-    }
+    if (!user) return fail(res, 401, 'Invalid email or password')
 
-    const isMatch = await bcrypt.compare(password, user.password_hash)
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password',
-        data: null,
-      })
-    }
+    const isMatch = await bcrypt.compare(req.body.password, user.password_hash)
+    if (!isMatch) return fail(res, 401, 'Invalid email or password')
 
-    const token = generateToken(user.id)
+    const subscription = await subscriptionPayload(user.id)
 
-    return res.status(200).json({
-      success: true,
-      message: 'Signed in',
-      data: { token, user: publicUser(user) },
+    return ok(res, 'Signed in', {
+      token: generateToken(user.id),
+      user: publicUser(user),
+      subscription,
     })
   } catch (err) {
     console.error('Login error:', err)
-    return res.status(500).json({
-      success: false,
-      message: 'Unable to sign in',
-      data: null,
-    })
+    return fail(res, 500, 'Unable to sign in')
   }
 })
 
 router.get('/me', protect, async (req, res) => {
-  return res.status(200).json({
-    success: true,
-    message: 'Profile fetched',
-    data: publicUser(req.user),
-  })
+  try {
+    const subscription = await subscriptionPayload(req.user.id)
+    return ok(res, 'Profile fetched', {
+      user: publicUser(req.user),
+      subscription,
+    })
+  } catch (err) {
+    console.error('Profile error:', err)
+    return fail(res, 500, 'Unable to load profile')
+  }
 })
 
 module.exports = router
