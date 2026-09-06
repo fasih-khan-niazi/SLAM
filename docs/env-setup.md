@@ -93,7 +93,7 @@ copy .env.example .env
 | `CLOUDINARY_URL` | api | Cloudinary dashboard → API environment variable. Required for payment screenshots (Phase 8). Same value on Railway `slam-api`. |
 | `FRONTEND_URL` | api | After deploy: `slam-web` public domain. Local: `http://localhost:5173` |
 | `CORS_ORIGINS` | api | Optional extra browser origins, comma-separated |
-| `API_PUBLIC_URL` | api | After deploy: `slam-api` public domain (used in admin emails). Local: `http://localhost:3000` |
+| `API_PUBLIC_URL` | api | After deploy: `slam-api` public domain (admin emails + CORS allowlist). Local: `http://localhost:3000` |
 | `VITE_API_BASE_URL` | web | Local: `http://localhost:3000`. Production: `slam-api` public domain (build-time) |
 | `VITE_GOOGLE_MAPS_API_KEY` | web | Google Cloud → Credentials → Maps JavaScript API key (HTTP referrer restricted) |
 
