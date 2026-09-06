@@ -45,3 +45,16 @@ data class MeData(
     val user: PublicUser,
     val subscription: SubscriptionInfo?,
 )
+
+data class LocationLogBody(
+    val latitude: Double,
+    val longitude: Double,
+    val accuracy: String,
+    @SerializedName("requested_by") val requestedBy: String,
+)
+
+data class LocationLogResult(
+    @SerializedName("requests_used") val requestsUsed: Int?,
+    @SerializedName("requests_remaining") val requestsRemaining: Int?,
+    @SerializedName("limit_reached") val limitReached: Boolean?,
+)

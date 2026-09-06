@@ -113,6 +113,7 @@ fun LoginScreen(
                         val body = response.body()
                         if (response.isSuccessful && body?.success == true && body.data != null) {
                             store.setSession(body.data.token, body.data.user.name)
+                            store.cacheUsage(body.data.subscription)
                             onLoggedIn()
                         } else {
                             error = body?.message ?: "Could not sign in"

@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.slam.app.MainActivity
 import com.slam.app.R
+import com.slam.app.data.ListenerPrefs
 import com.slam.app.sms.LocateRequestHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +34,11 @@ class SlamListenerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         startInForeground()
         val from = intent?.getStringExtra(EXTRA_FROM)
         val body = intent?.getStringExtra(EXTRA_BODY)
@@ -92,9 +98,11 @@ class SlamListenerService : Service() {
         const val NOTIFICATION_ID = 41
         const val EXTRA_FROM = "from"
         const val EXTRA_BODY = "body"
+        const val ACTION_STOP = "com.slam.app.STOP_LISTENER"
 
         fun start(context: Context): Boolean {
             return try {
+                ListenerPrefs(context).setListening(true)
                 context.startForegroundService(Intent(context, SlamListenerService::class.java))
                 true
             } catch (_: Exception) {
@@ -102,7 +110,18 @@ class SlamListenerService : Service() {
             }
         }
 
+        fun stop(context: Context) {
+            ListenerPrefs(context).setListening(false)
+            val intent = Intent(context, SlamListenerService::class.java).setAction(ACTION_STOP)
+            try {
+                context.startForegroundService(intent)
+            } catch (_: Exception) {
+                context.stopService(Intent(context, SlamListenerService::class.java))
+            }
+        }
+
         fun locate(context: Context, from: String, body: String) {
+            if (!ListenerPrefs(context).isListening()) return
             val intent = Intent(context, SlamListenerService::class.java)
                 .putExtra(EXTRA_FROM, from)
                 .putExtra(EXTRA_BODY, body)

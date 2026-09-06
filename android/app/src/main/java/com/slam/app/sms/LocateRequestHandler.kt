@@ -1,10 +1,13 @@
 package com.slam.app.sms
 
 import android.content.Context
+import com.slam.app.BuildConfig
 import com.slam.app.data.SessionStore
 import com.slam.app.data.local.FailedPinEntity
 import com.slam.app.data.local.LocationHistoryEntity
 import com.slam.app.data.local.SlamDatabase
+import com.slam.app.data.remote.LocationLogBody
+import com.slam.app.data.remote.SlamApiFactory
 import com.slam.app.location.LocationClient
 import com.slam.app.location.smsBody
 import com.slam.app.security.PinStore
@@ -17,6 +20,7 @@ class LocateRequestHandler(private val context: Context) {
         val command = SmsCommandParser.parse(body) ?: return@withContext
         val db = SlamDatabase.get(context)
         val pinStore = PinStore(context)
+        val session = SessionStore(context)
 
         if (!pinStore.hasPin() || !pinStore.verify(command.pin)) {
             db.failedPins().insert(FailedPinEntity(requestedBy = from))
@@ -28,7 +32,11 @@ class LocateRequestHandler(private val context: Context) {
             return@withContext
         }
 
-        val preferBattery = SessionStore(context).preferBattery.first()
+        if (!session.canLocate()) {
+            return@withContext
+        }
+
+        val preferBattery = session.preferBattery.first()
         val sender = SmsReplySender(context)
         val fix = LocationClient(context).acquire(preferBattery)
         if (fix == null) {
@@ -37,6 +45,7 @@ class LocateRequestHandler(private val context: Context) {
         }
 
         sender.send(from, fix.smsBody())
+        session.consumeLocate()
         db.locationHistory().insert(
             LocationHistoryEntity(
                 latitude = fix.latitude,
@@ -46,5 +55,21 @@ class LocateRequestHandler(private val context: Context) {
             )
         )
         db.locationHistory().trim()
+
+        val token = session.token.first()
+        if (token.isBlank()) return@withContext
+        try {
+            val api = SlamApiFactory.create(BuildConfig.API_BASE_URL)
+            val response = api.logLocation(
+                "Bearer $token",
+                LocationLogBody(fix.latitude, fix.longitude, fix.accuracy, from),
+            )
+            val remaining = response.body()?.data?.requestsRemaining
+            if (response.isSuccessful) {
+                session.applyServerRemaining(remaining)
+            }
+        } catch (_: Exception) {
+            // Offline: local cache already consumed.
+        }
     }
 }

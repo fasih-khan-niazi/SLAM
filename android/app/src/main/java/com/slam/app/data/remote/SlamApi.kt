@@ -22,6 +22,12 @@ interface SlamApi {
     @GET("api/auth/me")
     suspend fun me(@Header("Authorization") bearer: String): Response<ApiEnvelope<MeData>>
 
+    @POST("api/location/log")
+    suspend fun logLocation(
+        @Header("Authorization") bearer: String,
+        @Body body: LocationLogBody,
+    ): Response<ApiEnvelope<LocationLogResult>>
+
     @GET("health")
     suspend fun health(): Response<Map<String, Any>>
 }

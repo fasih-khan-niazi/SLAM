@@ -106,6 +106,7 @@ fun RegisterScreen(
                         val body = response.body()
                         if (response.isSuccessful && body?.success == true && body.data != null) {
                             store.setSession(body.data.token, body.data.user.name)
+                            store.cacheUsage(body.data.subscription)
                             onRegistered()
                         } else {
                             error = body?.message ?: "Could not create account"
