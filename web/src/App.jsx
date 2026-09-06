@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { getConfig } from './api/endpoints'
+import { useConfig } from './context/ConfigContext'
 import { Layout } from './components/Layout'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
@@ -10,13 +9,7 @@ import { RegisterPage } from './pages/RegisterPage'
 import { TermsPage } from './pages/TermsPage'
 
 export default function App() {
-  const [maintenance, setMaintenance] = useState(false)
-
-  useEffect(() => {
-    getConfig()
-      .then((res) => setMaintenance(Boolean(res.data?.maintenance)))
-      .catch(() => {})
-  }, [])
+  const { maintenance } = useConfig()
 
   return (
     <Layout maintenance={maintenance}>

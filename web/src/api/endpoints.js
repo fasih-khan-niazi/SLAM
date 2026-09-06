@@ -32,6 +32,14 @@ export function listPayments(token) {
   return api('/api/payments/my', { token })
 }
 
+export function listNotifications(token) {
+  return api('/api/notifications', { token })
+}
+
+export function markNotificationRead(token, id) {
+  return api(`/api/notifications/${id}/read`, { method: 'PATCH', token })
+}
+
 export function submitPayment(token, { subscriptionId, paymentMethod, transactionId, screenshot }) {
   return apiUpload('/api/payments/submit', {
     token,

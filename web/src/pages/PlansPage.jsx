@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { getPlans, subscribeToPlan } from '../api/endpoints'
 import { ApiError } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { useConfig } from '../context/ConfigContext'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { Skeleton } from '../components/Skeleton'
@@ -15,6 +16,7 @@ function limitLabel(plan) {
 
 export function PlansPage() {
   const { user, token, subscription, refresh } = useAuth()
+  const { paymentsEnabled, maintenance } = useConfig()
   const navigate = useNavigate()
   const [plans, setPlans] = useState(null)
   const [error, setError] = useState(null)
@@ -48,6 +50,9 @@ export function PlansPage() {
     <main className="page">
       <h1>Plans</h1>
       <p className="lede">Start on Free. Upgrade when the family needs more requests or more trusted numbers.</p>
+      {!paymentsEnabled || maintenance ? (
+        <p className="lede">Paid upgrades are paused right now. Free still works.</p>
+      ) : null}
       <div className="card-grid" style={{ marginTop: 24 }}>
         {!plans ? (
           <>
@@ -69,7 +74,7 @@ export function PlansPage() {
                   <li>{plan.has_history ? 'Location history on the web' : 'On-device history only'}</li>
                 </ul>
                 {current ? <p className="badge" style={{ marginTop: 16 }}>Current plan</p> : null}
-                {user && plan.price_pkr > 0 && !current ? (
+                {user && plan.price_pkr > 0 && !current && paymentsEnabled && !maintenance ? (
                   <div style={{ marginTop: 16 }}>
                     <Button onClick={() => choose(plan)} loading={busyId === plan.id} block>
                       Choose {plan.name}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useConfig } from '../context/ConfigContext'
 import { ApiError } from '../api/client'
 import { listPayments, submitPayment } from '../api/endpoints'
 import { Button } from '../components/Button'
@@ -18,6 +19,7 @@ function formatDate(value) {
 
 export function PaymentsPage() {
   const { token, user, subscription, ready, refresh } = useAuth()
+  const { paymentsEnabled, maintenance } = useConfig()
   const location = useLocation()
   const presetId = location.state?.subscription_id
 
@@ -80,7 +82,9 @@ export function PaymentsPage() {
       <div className="stack-lg" style={{ marginTop: 24 }}>
         <Card>
           <h2>Submit a receipt</h2>
-          {waiting ? (
+          {!paymentsEnabled || maintenance ? (
+            <p className="lede">Payments are paused right now. Your history below is still available.</p>
+          ) : waiting ? (
             <p className="lede">
               {subscription.plan_name} is {subscription.status.replace('_', ' ')}. Amount Rs {subscription.price_pkr}.
             </p>
@@ -89,6 +93,7 @@ export function PaymentsPage() {
               Pick Basic or Premium on <Link to="/plans">Plans</Link>, then come back here with the transaction ID.
             </p>
           )}
+          {paymentsEnabled && !maintenance ? (
           <form className="stack-lg" style={{ marginTop: 20 }} onSubmit={onSubmit}>
             <div className="field">
               <label htmlFor="method">Method</label>
@@ -117,6 +122,7 @@ export function PaymentsPage() {
               Submit payment
             </Button>
           </form>
+          ) : null}
         </Card>
 
         <Card>

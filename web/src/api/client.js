@@ -7,26 +7,38 @@ export class ApiError extends Error {
   }
 }
 
-export async function api(path, { method = 'GET', body, token } = {}) {
+async function readJson(response) {
+  return response.json().catch(() => null)
+}
+
+async function request(path, options, attempt = 1) {
   let response
   try {
-    response = await fetch(`${BASE}${path}`, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    })
+    response = await fetch(`${BASE}${path}`, options)
   } catch {
-    throw new ApiError('Cannot reach the API. Confirm it is running and VITE_API_BASE_URL is correct.')
+    if (attempt === 1) {
+      await new Promise((resolve) => setTimeout(resolve, 700))
+      return request(path, options, 2)
+    }
+    throw new ApiError('Cannot reach the server. Wait a moment and try again — it may still be starting.')
   }
 
-  const json = await response.json().catch(() => null)
+  const json = await readJson(response)
   if (!response.ok || !json?.success) {
     throw new ApiError(json?.message || 'Request failed', response.status)
   }
   return json
+}
+
+export async function api(path, { method = 'GET', body, token } = {}) {
+  return request(path, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
 }
 
 export function apiBaseUrl() {
@@ -40,20 +52,9 @@ export async function apiUpload(path, { token, fields = {}, file, fileField = 's
   })
   if (file) form.append(fileField, file)
 
-  let response
-  try {
-    response = await fetch(`${BASE}${path}`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
-    })
-  } catch {
-    throw new ApiError('Cannot reach the API. Confirm it is running and VITE_API_BASE_URL is correct.')
-  }
-
-  const json = await response.json().catch(() => null)
-  if (!response.ok || !json?.success) {
-    throw new ApiError(json?.message || 'Request failed', response.status)
-  }
-  return json
+  return request(path, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  })
 }
