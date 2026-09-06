@@ -81,7 +81,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         name = store.displayName.first()
         val token = store.token.first()
-        val base = store.apiBaseUrl.first().ifBlank { BuildConfig.API_BASE_URL }
+        val base = BuildConfig.API_BASE_URL
         try {
             if (token.isNotBlank()) {
                 val api = SlamApiFactory.create(base)
