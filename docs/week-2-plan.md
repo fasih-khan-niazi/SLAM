@@ -99,20 +99,21 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 
 ## Phase 13 — Close Week 2
 
-**Goal:** SLAM-branded admin, last FYP gaps, optional emergency/stealth. Detail: [phase-13.md](phase-13.md).
+**Goal:** SLAM admin home, plan-capped trusted numbers, working emergency SMS. Detail: [phase-13.md](phase-13.md).
 
 | Item | Priority | Now? |
 |------|----------|------|
 | Replace AdminJS default home (Discord / GitHub / rocket) | P0 | **This slice** |
 | Navigation name “SLAM” (not the Railway MySQL host) | P0 | **This slice** |
 | Enforce trusted-number cap from the plan | P0 | **This slice** |
-| UI pass: empty states, errors, haptics | P1 | **This slice** |
-| Emergency mode: location SMS every 60 minutes | P2 | Decide |
-| Stealth: hide launcher icon | P3 | Decide — see phase-13.md |
+| Emergency: admin interval 1–24 hours, SMS from the phone (no cron) | P0 | **This slice** |
+| Light UI pass on those surfaces | P1 | **This slice** |
+| Stealth: hide launcher icon | P3 | **Parked** (clients first) |
+| Premium Maps UI on the portal | P2 | **Parked** |
 | First-run consent + silent locate guard | — | **Already done** (Phase 12) |
-| Release APK | P0 | **Parked** (later) |
-| Deploy slam-web | P0 | **Parked** (later) |
-| Handover notes `docs/handover.md` | P1 | **Parked** (later) |
+| Release APK | P0 | **Parked** |
+| Deploy slam-web | P0 | **Parked** |
+| Handover notes `docs/handover.md` | P1 | **Parked** |
 | Merge `dev` → `main` so Railway `/admin` CORS ships | P0 | Process, when you PR |
 
-**Done when (this slice):** `/admin` home is SLAM, not AdminJS marketing; Free cannot add a second trusted number; you have decided yes/no on emergency and stealth.
+**Done when (this slice):** `/admin` is SLAM-branded; Free cannot add a second trusted number; emergency texts trusted numbers on the admin interval.
