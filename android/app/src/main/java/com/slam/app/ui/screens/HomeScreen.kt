@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.slam.app.BuildConfig
+import com.slam.app.data.ListenerPrefs
 import com.slam.app.data.SessionStore
 import com.slam.app.data.remote.SlamApiFactory
 import com.slam.app.data.remote.SubscriptionInfo
@@ -62,6 +63,9 @@ fun HomeScreen(
     var pinInput by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
     var listenerNote by remember { mutableStateOf<String?>(null) }
+    var listening by remember { mutableStateOf(ListenerPrefs(context).isListening()) }
+    var cachedRemaining by remember { mutableStateOf<Int?>(null) }
+    var cachedUnlimited by remember { mutableStateOf(false) }
     var permissionNote by remember { mutableStateOf("SMS and location permissions are required for tracking.") }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -90,11 +94,14 @@ fun HomeScreen(
                 if (response.isSuccessful && data != null) {
                     name = data.user.name
                     subscription = data.subscription
+                    store.cacheUsage(data.subscription)
                 }
             }
         } catch (_: Exception) {
-            // Offline home still renders with cached name.
+            // Offline home still renders with cached name and usage.
         } finally {
+            cachedUnlimited = store.cachedUnlimited.first()
+            cachedRemaining = store.cachedRemaining.first().let { if (it == Int.MAX_VALUE) null else it }
             loading = false
         }
     }
@@ -124,10 +131,11 @@ fun HomeScreen(
                     Spacer(Modifier.height(4.dp))
                     Text(subscription?.planName ?: "Free", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(8.dp))
-                    val remaining = subscription?.requestsRemaining
+                    val remaining = subscription?.requestsRemaining ?: cachedRemaining
                     val limit = subscription?.monthlyLimit
+                    val unlimited = cachedUnlimited || (limit == null && subscription?.planName == "Premium")
                     Text(
-                        if (limit == null && subscription?.planName == "Premium") {
+                        if (unlimited) {
                             "Unlimited location requests this month"
                         } else {
                             "${remaining ?: "—"} of ${limit ?: 5} requests remaining"
@@ -148,13 +156,23 @@ fun HomeScreen(
                         )
                         Spacer(Modifier.height(16.dp))
                         SlamPrimaryButton(
-                            text = "Keep listening",
+                            text = if (listening) "Listening" else "Start listening",
                             onClick = {
                                 listenerNote = if (SlamListenerService.start(context)) {
-                                    "Listener started. Pull down the notification shade — you should see SLAM."
+                                    listening = true
+                                    "Listening. Pull down the notification shade — you should see SLAM."
                                 } else {
                                     "Could not start the listener. Allow notifications for SLAM in system settings."
                                 }
+                            },
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        SlamTextButton(
+                            text = "Stop listening",
+                            onClick = {
+                                SlamListenerService.stop(context)
+                                listening = false
+                                listenerNote = "Stopped. Incoming SLAM texts will be ignored until you start again."
                             },
                         )
                         listenerNote?.let {

@@ -1,12 +1,17 @@
 package com.slam.app.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.slam.app.data.remote.SubscriptionInfo
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.util.Calendar
 
 private val Context.dataStore by preferencesDataStore("slam_prefs")
 
@@ -16,6 +21,8 @@ class SessionStore(private val context: Context) {
     val displayName: Flow<String> = context.dataStore.data.map { it[KEY_NAME] ?: "" }
     val apiBaseUrl: Flow<String> = context.dataStore.data.map { it[KEY_API] ?: "" }
     val preferBattery: Flow<Boolean> = context.dataStore.data.map { it[KEY_BATTERY] ?: false }
+    val cachedRemaining: Flow<Int> = context.dataStore.data.map { remainingAfterMonthRoll(it) }
+    val cachedUnlimited: Flow<Boolean> = context.dataStore.data.map { (it[KEY_LIMIT] ?: 5) < 0 }
 
     suspend fun setConsent(accepted: Boolean) {
         context.dataStore.edit { it[KEY_CONSENT] = accepted }
@@ -43,11 +50,79 @@ class SessionStore(private val context: Context) {
         }
     }
 
+    suspend fun cacheUsage(subscription: SubscriptionInfo?) {
+        val limit = subscription?.monthlyLimit
+        context.dataStore.edit {
+            it[KEY_MONTH] = currentMonth()
+            if (limit == null && subscription?.planName != "Free") {
+                it[KEY_LIMIT] = -1
+                it[KEY_REMAINING] = -1
+            } else {
+                val cap = limit ?: 5
+                it[KEY_LIMIT] = cap
+                it[KEY_REMAINING] = subscription?.requestsRemaining ?: cap
+            }
+        }
+    }
+
+    suspend fun canLocate(): Boolean {
+        val prefs = context.dataStore.data.first()
+        val remaining = remainingAfterMonthRoll(prefs)
+        val limit = prefs[KEY_LIMIT] ?: 5
+        return limit < 0 || remaining > 0
+    }
+
+    suspend fun consumeLocate() {
+        context.dataStore.edit { prefs ->
+            val limit = prefs[KEY_LIMIT] ?: 5
+            if (limit < 0) return@edit
+            val month = prefs[KEY_MONTH]
+            if (month != currentMonth()) {
+                prefs[KEY_MONTH] = currentMonth()
+                prefs[KEY_REMAINING] = (limit - 1).coerceAtLeast(0)
+                return@edit
+            }
+            val remaining = prefs[KEY_REMAINING] ?: limit
+            prefs[KEY_REMAINING] = (remaining - 1).coerceAtLeast(0)
+        }
+    }
+
+    suspend fun applyServerRemaining(remaining: Int?) {
+        if (remaining == null) {
+            context.dataStore.edit {
+                it[KEY_LIMIT] = -1
+                it[KEY_REMAINING] = -1
+                it[KEY_MONTH] = currentMonth()
+            }
+            return
+        }
+        context.dataStore.edit {
+            it[KEY_REMAINING] = remaining
+            it[KEY_MONTH] = currentMonth()
+        }
+    }
+
+    private fun remainingAfterMonthRoll(prefs: Preferences): Int {
+        val limit = prefs[KEY_LIMIT] ?: 5
+        if (limit < 0) return Int.MAX_VALUE
+        val month = prefs[KEY_MONTH]
+        if (month != null && month != currentMonth()) return limit
+        return prefs[KEY_REMAINING] ?: limit
+    }
+
+    private fun currentMonth(): String {
+        val cal = Calendar.getInstance()
+        return "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.MONTH) + 1}"
+    }
+
     private companion object {
         val KEY_CONSENT = booleanPreferencesKey("consent")
         val KEY_TOKEN = stringPreferencesKey("token")
         val KEY_NAME = stringPreferencesKey("name")
         val KEY_API = stringPreferencesKey("api_base")
         val KEY_BATTERY = booleanPreferencesKey("prefer_battery")
+        val KEY_REMAINING = intPreferencesKey("requests_remaining")
+        val KEY_LIMIT = intPreferencesKey("monthly_limit")
+        val KEY_MONTH = stringPreferencesKey("usage_month")
     }
 }

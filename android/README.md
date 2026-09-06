@@ -95,7 +95,8 @@ If install is blocked: phone → **Install anyway** / allow the computer.
 3. **Home**
    - **Tracking PIN** — enter 4–6 digits → **Save PIN**. Remember it.
    - **Allow SMS and location** — Allow all (SMS, location, notifications).
-   - **Keep listening** — a persistent notification “Listening for location requests” should appear. Leave it on.
+   - **Start listening** — a persistent notification “Listening for location requests” should appear.
+   - **Stop listening** — notification goes away; SLAM texts are ignored until you start again.
 4. **SMS test (two SIMs on this phone)**
    - SIM 1 = the SLAM number (the one the app is on).
    - SIM 2 = the tracker.
