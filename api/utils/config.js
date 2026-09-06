@@ -12,6 +12,8 @@ const DEFAULTS = {
   payments_enabled: true,
   maps_enabled: false,
   email_enabled: true,
+  emergency_enabled: true,
+  emergency_interval_hours: 1,
 }
 
 function clampInt(value, fallback, min, max) {
@@ -33,6 +35,8 @@ function publicFields(row) {
     payments_enabled: Boolean(row.payments_enabled),
     maps_enabled: Boolean(row.maps_enabled),
     email_enabled: Boolean(row.email_enabled),
+    emergency_enabled: row.emergency_enabled !== false,
+    emergency_interval_hours: clampInt(row.emergency_interval_hours, 1, 1, 24),
   }
 }
 
