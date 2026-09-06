@@ -21,7 +21,7 @@ npm run dev
 - Dark default, light toggle (saved in the browser)
 - Login, register, public plans, account dashboard
 - Choose Basic/Premium, submit JazzCash/EasyPaisa receipt, payment history
-- Custom modal, skeletons, terms page
+- Custom modal, skeletons, terms page (footer + sign-in link)
 - `GET /api/config` for maintenance and payment pause (AdminJS SystemConfig)
 - Account notifications for payment submit / approve / reject
 

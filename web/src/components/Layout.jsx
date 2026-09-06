@@ -26,6 +26,11 @@ export function Layout({ children, maintenance = false }) {
         </nav>
       </header>
       {children}
+      <p className="footer-note">
+        <Link to="/terms">Terms</Link>
+        {' · '}
+        Location over SMS only after you accept consent on the phone.
+      </p>
     </div>
   )
 }
