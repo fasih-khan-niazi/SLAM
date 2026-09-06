@@ -23,8 +23,15 @@ export function TermsPage() {
         <Card>
           <h2>Consent</h2>
           <p className="lede">
-            Only install SLAM on a phone you own or have permission to locate. SMS and location
-            access are required for tracking.
+            Only install SLAM on a phone you own or have permission to locate. The first launch
+            asks you to confirm that. Tracking stays off until you accept, set a PIN, and start listening.
+          </p>
+        </Card>
+        <Card>
+          <h2>PIN attempts</h2>
+          <p className="lede">
+            Wrong PIN texts are ignored. After several failures in 15 minutes, the phone stays silent
+            even if the PIN is later correct, until that window ends or you update the PIN in Settings.
           </p>
         </Card>
       </div>

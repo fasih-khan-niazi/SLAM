@@ -42,6 +42,8 @@ export function LoginPage() {
       </form>
       <p className="muted" style={{ marginTop: 16 }}>
         New here? <Link to="/register">Create an account</Link>
+        {' · '}
+        <Link to="/terms">Terms</Link>
       </p>
       {error ? (
         <Modal title="Sign in failed" message={error} confirmLabel="OK" onConfirm={() => setError(null)} onDismiss={() => setError(null)} />
