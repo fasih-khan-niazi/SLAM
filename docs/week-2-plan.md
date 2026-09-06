@@ -55,6 +55,8 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Payment history | P1 |
 | Premium location history map (Maps JavaScript API) | P2 |
 
+**Status:** Portal dashboard, plan picker, receipt upload, and payment history are in `web/`. Maps stay P2.
+
 **Done when:** Register → pick plan → submit payment → see status without touching AdminJS as a user.
 
 ---
