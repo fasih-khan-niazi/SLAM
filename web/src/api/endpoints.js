@@ -24,4 +24,12 @@ export function getSubscription(token) {
   return api('/api/user/subscription', { token })
 }
 
-// Week 2: subscribe(), submitPayment(), listPayments() land here.
+export function subscribeToPlan(token, planId) {
+  return api('/api/subscribe', { method: 'POST', body: { plan_id: planId }, token })
+}
+
+export function listPayments(token) {
+  return api('/api/payments/my', { token })
+}
+
+// Phase 10 UI will POST multipart (screenshot + transaction_id) to /api/payments/submit.
