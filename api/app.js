@@ -55,15 +55,31 @@ const allowedOrigins = [
 
 const allowedHosts = new Set(allowedOrigins.map(hostnameOf).filter(Boolean))
 
+function isLoopbackHost(host) {
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1'
+}
+
+function isAdminPath(req) {
+  const path = String(req.originalUrl || req.path || '').split('?')[0]
+  return path === '/admin' || path.startsWith('/admin/')
+}
+
 app.use((req, res, next) => {
+  // AdminJS is served from this same API. Reflect any Origin so
+  // localhost vs 127.0.0.1 vs ::1 (and the Railway public host) can sign in.
+  if (isAdminPath(req)) {
+    return cors({ origin: true, credentials: true })(req, res, next)
+  }
+
   cors({
     origin(origin, callback) {
       if (!origin) return callback(null, true)
       const originHost = hostnameOf(origin)
       const requestHost = hostnameOf(req.get('host'))
-      // AdminJS lives on this same API host. Same-host browser posts must pass
-      // even when API_PUBLIC_URL is missing or does not match the public domain.
       if (originHost && requestHost && originHost === requestHost) {
+        return callback(null, true)
+      }
+      if (isLoopbackHost(originHost) && isLoopbackHost(requestHost)) {
         return callback(null, true)
       }
       if (allowedHosts.has(originHost)) return callback(null, true)

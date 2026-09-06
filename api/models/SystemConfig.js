@@ -25,7 +25,22 @@ const SystemConfig = sequelize.define('SystemConfig', {
   pin_attempt_cap: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    defaultValue: 8,
+    defaultValue: 3,
+  },
+  pin_window_minutes: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 15,
+  },
+  login_attempt_cap: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 3,
+  },
+  login_window_minutes: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 15,
   },
   maintenance: {
     type: DataTypes.BOOLEAN,
