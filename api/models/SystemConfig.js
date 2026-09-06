@@ -62,6 +62,16 @@ const SystemConfig = sequelize.define('SystemConfig', {
     allowNull: false,
     defaultValue: true,
   },
+  emergency_enabled: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
+  },
+  emergency_interval_hours: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 1,
+  },
 }, {
   tableName: 'system_config',
   timestamps: true,

@@ -72,12 +72,13 @@ async function ensureSystemConfigColumns() {
     return
   }
 
-  const columns = [
+  const intColumns = [
     ['pin_window_minutes', 15],
     ['login_attempt_cap', 3],
     ['login_window_minutes', 15],
+    ['emergency_interval_hours', 1],
   ]
-  for (const [name, defaultValue] of columns) {
+  for (const [name, defaultValue] of intColumns) {
     if (!table[name]) {
       await qi.addColumn('system_config', name, {
         type: DataTypes.INTEGER,
@@ -85,6 +86,13 @@ async function ensureSystemConfigColumns() {
         defaultValue,
       })
     }
+  }
+  if (!table.emergency_enabled) {
+    await qi.addColumn('system_config', 'emergency_enabled', {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    })
   }
 
   await SystemConfig.update(
@@ -108,6 +116,8 @@ async function seedSystemConfig() {
     payments_enabled: true,
     maps_enabled: false,
     email_enabled: true,
+    emergency_enabled: true,
+    emergency_interval_hours: 1,
   })
 }
 
