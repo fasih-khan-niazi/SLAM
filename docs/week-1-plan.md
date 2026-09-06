@@ -19,6 +19,8 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | Migrate previous API into `api/` (no secrets, no `node_modules`) | P0 |
 | Git: `main` + `dev`, `.gitignore`, `.env.example` | P0 |
 
+**Status:** Complete.
+
 **Done when:** `api` starts, AdminJS loads, plans seed, no secrets in git.
 
 ---
@@ -37,7 +39,9 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | Admin role guard on payment approve/reject | P1 |
 | Health check `/health` | P1 |
 
-**Done when:** Auth + plans + location can be called with Postman against local API.
+**Status:** Complete.
+
+**Done when:** Auth + plans + location can be called against the local API. See [api-testing.md](api-testing.md).
 
 ---
 
@@ -53,6 +57,8 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | SMS, location, and notification permissions | P0 |
 | Skeleton loaders, custom modals, haptics on primary actions | P1 |
 | Polished login screen | P0 |
+
+**Status:** Complete.
 
 **Done when:** APK installs on Oppo F19 and the UI shell feels finished, not placeholder.
 
@@ -71,11 +77,27 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | Foreground service so Android 13 does not kill the listener | P0 |
 | Battery: location only while fulfilling a request | P1 |
 
-**Done when:** SIM 2 sends the command to SIM 1 and a location SMS comes back.
+**Status:** Code complete. On-device: location SMS was **composed** (accurate coords + Maps link). **Delivery** waits on SIM 1 SMS credit (your test later).
+
+**Done when:** Requester’s inbox shows the reply. Not a coding blocker for Phase A.
 
 ---
 
-## Phase 5 — Device security and settings
+## Phase A — Close Week 1 (Phases 5–7)
+
+**Goal:** Settings + trusted numbers, React portal, Railway API + debug APK — as **one** incremental close. Detail: [phase-a.md](phase-a.md).
+
+| Slice | Old phase | Outcome |
+|-------|-----------|---------|
+| **A1** | 5 | Trusted numbers, settings, safe failures |
+| **A2** | 6 | React login / register / plans vs local API |
+| **A3** | 7 | `slam-api` on Railway, portal + APK use that URL |
+
+A1–A3 implemented in the repo. Tag Week 1 after A3 when you ask. You still create the Railway `slam-api` service (dashboard). See [phase-a.md](phase-a.md) and [deploy.md](deploy.md).
+
+---
+
+## Phase 5 — Device security and settings (Phase A / A1)
 
 **Goal:** Owner controls who can track, and failures are handled cleanly.
 
@@ -87,11 +109,13 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | Error SMS when location unavailable (no secrets leaked) | P1 |
 | Last 10 locations stored on device | P2 |
 
+**Status:** Code complete (rebuild the app to pick up Settings).
+
 **Done when:** Trusted number works, unknown number is ignored, settings persist.
 
 ---
 
-## Phase 6 — Web portal shell
+## Phase 6 — Web portal shell (Phase A / A2)
 
 **Goal:** User-facing React app that matches the Android look.
 
@@ -103,11 +127,13 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | Public plans page | P0 |
 | Auth against local API | P1 |
 
+**Status:** Code complete. Run `web` against local API.
+
 **Done when:** A user can register, log in, and view plans in the browser.
 
 ---
 
-## Phase 7 — Week 1 integration
+## Phase 7 — Week 1 integration (Phase A / A3)
 
 **Goal:** API on Railway; app and portal talk to it.
 
@@ -118,6 +144,8 @@ Priorities: **P0** ship now · **P1** required this week · **P2** if time · **
 | Android debug build against Railway API (login only; SMS stays local) | P1 |
 | Smoke test: register → login → list plans | P0 |
 | Signed debug APK for testers | P1 |
+
+**Status:** Deploy files and docs ready. Create `slam-api` in the Railway dashboard ([deploy.md](deploy.md)).
 
 **Done when:** Portal and API work on Railway; SMS loop still proven on the phone.
 

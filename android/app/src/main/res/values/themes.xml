@@ -1,0 +1,10 @@
+<resources>
+    <color name="slam_bg">#0B1220</color>
+    <color name="slam_primary">#14B8A6</color>
+    <style name="Theme.SLAM" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/slam_bg</item>
+        <item name="android:navigationBarColor">@color/slam_bg</item>
+        <item name="android:windowBackground">@color/slam_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

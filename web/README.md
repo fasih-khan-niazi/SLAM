@@ -1,5 +1,36 @@
 # Web portal
 
-React (Vite) user portal — register, plans, payments, dashboard.
+React + Vite. Tokens from [docs/design-system.md](../docs/design-system.md). Talks to the SLAM API.
 
-Scaffolded in Phase 6. Design tokens: [docs/design-system.md](../docs/design-system.md).
+## Run locally
+
+API first (`f:\SLAM\api` → `npm run dev`). Then:
+
+```powershell
+cd f:\SLAM\web
+copy .env.example .env
+npm install
+npm run dev
+```
+
+- Portal: http://localhost:5173
+- API default: `VITE_API_BASE_URL=http://localhost:3000`
+
+## What is here (Phase A)
+
+- Dark default, light toggle (saved in the browser)
+- Login, register, public plans
+- Account home: plan name and remaining requests (`GET /api/user/subscription` via `/api/auth/me`)
+- Custom modal, skeletons, terms page
+- `GET /api/config` for maintenance (Week 2 will drive this from admin)
+
+Payments, Cloudinary uploads, and the map dashboard are Week 2. The API client in `src/api/endpoints.js` is where those calls will go.
+
+## Production build
+
+```powershell
+npm run build
+npm run preview
+```
+
+On Railway, root directory is `web`. Set `VITE_API_BASE_URL` to the public `slam-api` URL **before** the build. See [docs/deploy.md](../docs/deploy.md).
