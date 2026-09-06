@@ -42,6 +42,19 @@ const admin = new AdminJS({
       resource: Payment,
       options: {
         listProperties: ['id', 'user_id', 'plan_id', 'amount_pkr', 'payment_method', 'transaction_id', 'status', 'createdAt'],
+        showProperties: [
+          'id',
+          'user_id',
+          'plan_id',
+          'subscription_id',
+          'amount_pkr',
+          'payment_method',
+          'transaction_id',
+          'screenshot_url',
+          'status',
+          'approved_at',
+          'createdAt',
+        ],
         filterProperties: ['status', 'payment_method'],
         actions: {
           approve: {
