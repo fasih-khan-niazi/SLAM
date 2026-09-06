@@ -90,7 +90,7 @@ copy .env.example .env
 | `ADMIN_PASSWORD` | api | `Password123` |
 | `EMAIL_USER` | api | Gmail address used for outbound mail |
 | `EMAIL_PASS` | api | Google Account → Security → 2-Step Verification → **App passwords** (16 characters, not the Gmail login password) |
-| `CLOUDINARY_URL` | api | Cloudinary dashboard → API environment variable |
+| `CLOUDINARY_URL` | api | Cloudinary dashboard → API environment variable. Required for payment screenshots (Phase 8). Same value on Railway `slam-api`. |
 | `FRONTEND_URL` | api | After deploy: `slam-web` public domain. Local: `http://localhost:5173` |
 | `CORS_ORIGINS` | api | Optional extra browser origins, comma-separated |
 | `API_PUBLIC_URL` | api | After deploy: `slam-api` public domain (used in admin emails). Local: `http://localhost:3000` |

@@ -19,7 +19,9 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Email on submit (admin) and on decision (user) | P0 |
 | Payment history for the logged-in user | P1 |
 
-**Done when:** A pending payment becomes an active 30-day subscription after admin approval.
+**Status:** API stores screenshots on Cloudinary. Submit + history + AdminJS approve/reject + emails. Portal pay UI is Phase 10.
+
+**Done when:** A pending payment becomes an active 30-day subscription after admin approval (prove once against Railway).
 
 ---
 
@@ -33,6 +35,7 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Sync subscription on launch when online | P0 |
 | Cache monthly remaining requests for offline use | P0 |
 | Block further SMS replies when cached limit is reached | P0 |
+| Stop listening (clear button; stops the foreground service) | P0 |
 | POST location log when online | P1 |
 
 **Done when:** Free plan allows 5 requests; the 6th is blocked even if the network is off (using cache).

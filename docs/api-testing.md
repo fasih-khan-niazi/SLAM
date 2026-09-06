@@ -118,4 +118,19 @@ Expect `401`.
 Browser: http://localhost:3000/admin  
 `admin@slam.com` / `Password123`
 
-Payments and Cloudinary are **Phase 8**. Do not wait on those to finish Phase 2.
+## 11. Payment submit (Phase 8)
+
+Needs a JWT and `CLOUDINARY_URL`. Create a paid subscription first (`POST /api/subscribe` with Basic or Premium `plan_id`), then:
+
+```powershell
+$form = @{
+  subscription_id = "<id>"
+  payment_method = "jazzcash"
+  transaction_id = "JC-TEST-001"
+}
+# Attach screenshot as multipart field name "screenshot" (JPG/PNG).
+```
+
+Then `/admin` → Payments → open the record (Cloudinary URL) → Approve. User gets email; plan becomes active.
+
+`GET /api/payments/my` lists that user’s history.
