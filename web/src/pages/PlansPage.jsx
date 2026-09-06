@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { getPlans } from '../api/endpoints'
+import { Link, useNavigate } from 'react-router-dom'
+import { getPlans, subscribeToPlan } from '../api/endpoints'
 import { ApiError } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { Skeleton } from '../components/Skeleton'
 import { Modal } from '../components/Modal'
@@ -13,15 +14,35 @@ function limitLabel(plan) {
 }
 
 export function PlansPage() {
-  const { user, subscription } = useAuth()
+  const { user, token, subscription, refresh } = useAuth()
+  const navigate = useNavigate()
   const [plans, setPlans] = useState(null)
   const [error, setError] = useState(null)
+  const [busyId, setBusyId] = useState(null)
 
   useEffect(() => {
     getPlans()
       .then((res) => setPlans(res.data.plans || []))
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Unable to load plans'))
   }, [])
+
+  async function choose(plan) {
+    if (!user) {
+      navigate('/login')
+      return
+    }
+    if (plan.price_pkr === 0) return
+    setBusyId(plan.id)
+    try {
+      const res = await subscribeToPlan(token, plan.id)
+      await refresh()
+      navigate('/payments', { state: { subscription_id: res.data.subscription_id } })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not start the subscription')
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   return (
     <main className="page">
@@ -48,6 +69,13 @@ export function PlansPage() {
                   <li>{plan.has_history ? 'Location history on the web' : 'On-device history only'}</li>
                 </ul>
                 {current ? <p className="badge" style={{ marginTop: 16 }}>Current plan</p> : null}
+                {user && plan.price_pkr > 0 && !current ? (
+                  <div style={{ marginTop: 16 }}>
+                    <Button onClick={() => choose(plan)} loading={busyId === plan.id} block>
+                      Choose {plan.name}
+                    </Button>
+                  </div>
+                ) : null}
               </Card>
             )
           })

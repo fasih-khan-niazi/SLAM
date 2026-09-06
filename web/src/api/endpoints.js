@@ -1,4 +1,4 @@
-import { api } from './client'
+import { api, apiUpload } from './client'
 
 export function getConfig() {
   return api('/api/config')
@@ -32,4 +32,14 @@ export function listPayments(token) {
   return api('/api/payments/my', { token })
 }
 
-// Phase 10 UI will POST multipart (screenshot + transaction_id) to /api/payments/submit.
+export function submitPayment(token, { subscriptionId, paymentMethod, transactionId, screenshot }) {
+  return apiUpload('/api/payments/submit', {
+    token,
+    fields: {
+      subscription_id: subscriptionId,
+      payment_method: paymentMethod,
+      transaction_id: transactionId,
+    },
+    file: screenshot,
+  })
+}

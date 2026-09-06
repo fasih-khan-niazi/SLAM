@@ -58,6 +58,13 @@ export function AuthProvider({ children }) {
     persist('', null, null)
   }
 
+  async function refresh() {
+    if (!token) return null
+    const res = await getMe(token)
+    persist(token, res.data.user, res.data.subscription)
+    return res.data.subscription
+  }
+
   const value = useMemo(() => ({
     token,
     user,
@@ -66,6 +73,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    refresh,
   }), [token, user, subscription, ready])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

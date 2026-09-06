@@ -18,6 +18,7 @@ export function Layout({ children, maintenance = false }) {
         </Link>
         <nav className="nav-links">
           <NavLink to="/plans">Plans</NavLink>
+          {user ? <NavLink to="/payments">Payments</NavLink> : null}
           {user ? <NavLink to="/">Account</NavLink> : <NavLink to="/login">Sign in</NavLink>}
           <Button variant="ghost" onClick={toggleTheme}>
             {theme === 'dark' ? 'Light' : 'Dark'}
