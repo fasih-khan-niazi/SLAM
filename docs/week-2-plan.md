@@ -116,4 +116,6 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Handover notes `docs/handover.md` | P1 | **Parked** |
 | Merge `dev` → `main` so Railway `/admin` CORS ships | P0 | Process, when you PR |
 
+**Status:** Custom SLAM admin home + navigation, trusted-number cap on the phone, emergency SMS (admin interval 1–24 hours, no cron). Rebuild the app. Stealth, Maps, APK, slam-web, handover stay parked.
+
 **Done when (this slice):** `/admin` is SLAM-branded; Free cannot add a second trusted number; emergency texts trusted numbers on the admin interval.
