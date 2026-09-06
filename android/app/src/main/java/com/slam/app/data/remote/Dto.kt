@@ -27,6 +27,8 @@ data class SubscriptionInfo(
     val status: String?,
     @SerializedName("requests_remaining") val requestsRemaining: Int?,
     @SerializedName("monthly_limit") val monthlyLimit: Int?,
+    @SerializedName("start_date") val startDate: String? = null,
+    @SerializedName("end_date") val endDate: String? = null,
 )
 
 data class RegisterBody(
