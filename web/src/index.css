@@ -180,13 +180,18 @@ h1 {
   font-size: 0.9rem;
 }
 
-.field input {
+.field input,
+.field select {
   min-height: 48px;
   padding: 12px 14px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
+}
+
+.field input[type='file'] {
+  padding: 10px;
 }
 
 .field input:focus {
