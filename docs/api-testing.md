@@ -30,7 +30,7 @@ Expect Free, Basic, Premium.
 Invoke-RestMethod "$base/api/config"
 ```
 
-Expect `sms_prefix: SLAM`, `maintenance: false`, and `payments_enabled: true`. These come from the `system_config` row (AdminJS → SystemConfigs).
+Expect `sms_prefix: SLAM`, `maintenance: false`, `payments_enabled: true`, `login_attempt_cap: 3`, and `pin_attempt_cap: 3`. These come from the `system_config` row (AdminJS → SystemConfigs). Portal login and SMS PIN limits are separate fields.
 
 ## 3. Register
 
@@ -115,7 +115,7 @@ Expect `401`.
 
 ## 13. Login rate limit (Phase 12)
 
-Fifteen sign-in posts from the same IP in 15 minutes return `429` with `Too many sign-in attempts`. Register is capped at 8.
+Three **failed** portal sign-ins from the same IP (default) return `429`. The count and window come from SystemConfig (`login_attempt_cap`, `login_window_minutes`). A successful sign-in clears the count. Register is still capped at 8 posts per 15 minutes.
 
 Duplicate `transaction_id` on `POST /api/payments/submit` still returns `400`.
 

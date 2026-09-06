@@ -91,7 +91,7 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Terms page on the portal | P1 |
 | Duplicate transaction ID rejected | P0 |
 
-**Status:** Login/register are rate-limited (15 / 8 per 15 minutes per IP). JWT expiry stays 7 days (`JWT_EXPIRES_IN`). Helmet + CORS were already on. Failed SMS PINs lock out after the cached `pin_attempt_cap` (default 8) in a 15-minute window — silent, same as a wrong PIN. Consent is required before SMS locate and before boot resumes the listener. Terms are on `/terms`. Duplicate transaction IDs were already rejected.
+**Status:** Portal failed logins and SMS wrong PINs are both admin-configurable (default **3** attempts, **15** minute windows, separate fields). Helmet + CORS were already on; `/admin` now reflects its own Origin so localhost / 127.0.0.1 / Railway can sign in. JWT expiry stays 7 days. Duplicate transaction IDs were already rejected. Terms are on `/terms`.
 
 **Done when:** Unauthenticated API calls return 401; consent must be accepted before tracking is enabled.
 
