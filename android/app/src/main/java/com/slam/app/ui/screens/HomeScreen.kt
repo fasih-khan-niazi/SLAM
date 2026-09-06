@@ -89,7 +89,8 @@ fun HomeScreen(
         try {
             val api = SlamApiFactory.create(base)
             runCatching {
-                store.cacheProductConfig(api.config().body()?.data?.pinAttemptCap)
+                val config = api.config().body()?.data
+                store.cacheProductConfig(config?.pinAttemptCap, config?.pinWindowMinutes)
             }
             if (token.isNotBlank()) {
                 val response = api.me("Bearer $token")

@@ -26,7 +26,8 @@ class LocateRequestHandler(private val context: Context) {
             return@withContext
         }
 
-        val windowStart = System.currentTimeMillis() - PIN_WINDOW_MS
+        val windowMs = session.cachedPinWindowMs()
+        val windowStart = System.currentTimeMillis() - windowMs
         db.failedPins().deleteOlderThan(windowStart)
         val recentFails = db.failedPins().countSince(windowStart)
         val cap = session.cachedPinAttemptCap()
@@ -85,9 +86,5 @@ class LocateRequestHandler(private val context: Context) {
         } catch (_: Exception) {
             // Offline: local cache already consumed.
         }
-    }
-
-    companion object {
-        const val PIN_WINDOW_MS = 15 * 60 * 1000L
     }
 }
