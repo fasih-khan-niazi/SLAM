@@ -56,8 +56,29 @@ async function activateFreePlan(userId, transaction) {
   }, transaction ? { transaction } : undefined)
 }
 
+async function rollUsagePeriodIfExpired(subscription) {
+  if (!subscription || subscription.status !== 'active' || !subscription.plan) {
+    return subscription
+  }
+  if (subscription.plan.monthly_limit == null) return subscription
+  if (!subscription.end_date) return subscription
+
+  const end = new Date(subscription.end_date)
+  if (Number.isNaN(end.getTime()) || Date.now() <= end.getTime()) {
+    return subscription
+  }
+
+  const today = new Date()
+  await subscription.update({
+    requests_used: 0,
+    start_date: today,
+    end_date: addDays(today, 30),
+  })
+  return subscription
+}
+
 async function getCurrentSubscription(userId) {
-  return Subscription.findOne({
+  const current = await Subscription.findOne({
     where: {
       user_id: userId,
       status: ['active', 'pending_payment', 'pending_approval'],
@@ -65,6 +86,7 @@ async function getCurrentSubscription(userId) {
     include: [{ model: SubscriptionPlan, as: 'plan' }],
     order: [['createdAt', 'DESC']],
   })
+  return rollUsagePeriodIfExpired(current)
 }
 
 async function monthLocationCount(userId) {
@@ -88,13 +110,14 @@ async function getActivePlanInfo(userId) {
   })
 
   if (subscription) {
+    const current = await rollUsagePeriodIfExpired(subscription)
     return {
-      subscription,
-      plan: subscription.plan,
-      monthly_limit: subscription.plan.monthly_limit,
-      requests_used: subscription.requests_used,
-      has_history: subscription.plan.has_history,
-      plan_name: subscription.plan.name,
+      subscription: current,
+      plan: current.plan,
+      monthly_limit: current.plan.monthly_limit,
+      requests_used: current.requests_used,
+      has_history: current.plan.has_history,
+      plan_name: current.plan.name,
     }
   }
 
