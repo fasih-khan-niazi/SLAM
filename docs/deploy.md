@@ -71,6 +71,10 @@ Expect `database: connected` and Free / Basic / Premium. Then run the register â
 Admin: `https://<slam-api-domain>/admin`  
 `admin@slam.com` / `Password123`
 
+The admin login is a browser POST from that same API URL. CORS must allow that host. Set `API_PUBLIC_URL` to the **exact** public domain (no trailing slash). The API also allows the request `Host` so a missing `API_PUBLIC_URL` no longer blocks `/admin`.
+
+**slam-api must be on a commit that includes this CORS fix.** If the service tracks `main` and the fix is only on `dev`, `/admin` still returns `Origin not allowed` until you merge and Railway redeploys.
+
 ---
 
 ## 2. Create `slam-web` (after the portal exists)

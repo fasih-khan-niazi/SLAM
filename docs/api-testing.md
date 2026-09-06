@@ -30,7 +30,7 @@ Expect Free, Basic, Premium.
 Invoke-RestMethod "$base/api/config"
 ```
 
-Expect `sms_prefix: SLAM` and `maintenance: false`.
+Expect `sms_prefix: SLAM`, `maintenance: false`, and `payments_enabled: true`. These come from the `system_config` row (AdminJS → SystemConfigs).
 
 ## 3. Register
 
@@ -131,6 +131,14 @@ $form = @{
 # Attach screenshot as multipart field name "screenshot" (JPG/PNG).
 ```
 
-Then `/admin` → Payments → open the record (Cloudinary URL) → Approve. User gets email; plan becomes active.
+Then `/admin` → Payments → open the record (Cloudinary URL) → Approve. User gets email plus an in-app notification; plan becomes active.
 
 `GET /api/payments/my` lists that user’s history.
+
+## 12. Notifications (Phase 11)
+
+```powershell
+Invoke-RestMethod "$base/api/notifications" -Headers $headers
+```
+
+Expect `notifications` (may be empty until a payment is submitted).

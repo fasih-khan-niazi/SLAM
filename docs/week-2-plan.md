@@ -68,12 +68,14 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Item | Priority |
 |------|----------|
 | `SystemConfig` table + AdminJS config page | P0 |
-| Public config endpoint (safe fields only) — stub is `GET /api/config`; wire to `SystemConfig` | P1 |
+| Public config endpoint (safe fields only) — `GET /api/config` reads `SystemConfig` | P1 |
 | In-app notification list API | P0 |
 | Admin notification on new payment | P1 |
 | Settings: SMS prefix, limits, maintenance, email toggle, PIN attempt cap | P0 |
 
-**Done when:** Changing a config value in admin is reflected by the API without a code deploy.
+**Status:** `SystemConfig` + AdminJS (no new/delete), `GET /api/config` reads the table, notification list API, payment submit/approve/reject create in-app alerts. Maintenance and `payments_enabled` are honored on subscribe/pay and the portal banner.
+
+**Done when:** Changing a config value in admin is reflected by the API without a code deploy. Redeploy slam-api so `/admin` CORS allows the API’s own origin.
 
 ---
 
