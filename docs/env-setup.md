@@ -85,6 +85,7 @@ copy .env.example .env
 | `NODE_ENV` | api, web | `development` on PC, `production` on Railway |
 | `PORT` | api | Local: `3000`. Railway injects this — do not set it on the service |
 | `JWT_SECRET` | api | Random 32+ character string |
+| `JWT_EXPIRES_IN` | api | Optional. Default `7d`. jsonwebtoken duration string. |
 | `SESSION_SECRET` | api | Different random 32+ character string |
 | `ADMIN_EMAIL` | api | `admin@slam.com` |
 | `ADMIN_PASSWORD` | api | `Password123` |
