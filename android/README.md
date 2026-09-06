@@ -96,7 +96,8 @@ If install is blocked: phone → **Install anyway** / allow the computer.
    - **Tracking PIN** — enter 4–6 digits → **Save PIN**. Remember it.
    - **Allow SMS and location** — Allow all (SMS, location, notifications).
    - **Start listening** — a persistent notification “Listening for location requests” should appear.
-   - **Stop listening** — notification goes away; SLAM texts are ignored until you start again.
+   - **Stop listening** — notification goes away; SLAM texts are ignored until you start again. Emergency stops too.
+   - **Emergency** — add at least one trusted number, start listening, then Start emergency. The first location SMS goes now; the next one follows the admin interval (default 1 hour).
 4. **SMS test (two SIMs on this phone)**
    - SIM 1 = the SLAM number (the one the app is on).
    - SIM 2 = the tracker.
@@ -110,7 +111,7 @@ If install is blocked: phone → **Install anyway** / allow the computer.
    - Wait up to ~30 seconds. SIM 2 should get a reply with coordinates. Wrong PIN = **no** reply (logged on device).
 5. **Settings** (from Home)
    - Change PIN (current PIN required).
-   - Trusted numbers: empty list = anyone with the PIN; once you add a number, only those numbers get a reply.
+   - Trusted numbers: empty list = anyone with the PIN; once you add a number, only those numbers get a reply. The plan cap is enforced (Free 1, Basic 5, Premium 20).
    - Prefer battery: skip GPS-first (also automatic below 15% battery).
    - Recent locations: last 10 replies stored on this phone.
 

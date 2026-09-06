@@ -27,6 +27,7 @@ data class SubscriptionInfo(
     val status: String?,
     @SerializedName("requests_remaining") val requestsRemaining: Int?,
     @SerializedName("monthly_limit") val monthlyLimit: Int?,
+    @SerializedName("max_contacts") val maxContacts: Int? = null,
     @SerializedName("start_date") val startDate: String? = null,
     @SerializedName("end_date") val endDate: String? = null,
 )
@@ -65,6 +66,8 @@ data class PublicConfig(
     @SerializedName("login_window_minutes") val loginWindowMinutes: Int? = null,
     val maintenance: Boolean? = null,
     @SerializedName("payments_enabled") val paymentsEnabled: Boolean? = null,
+    @SerializedName("emergency_enabled") val emergencyEnabled: Boolean? = null,
+    @SerializedName("emergency_interval_hours") val emergencyIntervalHours: Int? = null,
 )
 
 data class LocationLogResult(

@@ -25,6 +25,9 @@ class SessionStore(private val context: Context) {
     val cachedUnlimited: Flow<Boolean> = context.dataStore.data.map { (it[KEY_LIMIT] ?: 5) < 0 }
     val pinAttemptCap: Flow<Int> = context.dataStore.data.map { it[KEY_PIN_CAP] ?: 3 }
     val pinWindowMinutes: Flow<Int> = context.dataStore.data.map { it[KEY_PIN_WINDOW] ?: 15 }
+    val emergencyEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_EMERGENCY_ON] ?: true }
+    val emergencyIntervalHours: Flow<Int> = context.dataStore.data.map { it[KEY_EMERGENCY_HOURS] ?: 1 }
+    val maxContacts: Flow<Int> = context.dataStore.data.map { it[KEY_MAX_CONTACTS] ?: 1 }
 
     suspend fun setConsent(accepted: Boolean) {
         context.dataStore.edit { it[KEY_CONSENT] = accepted }
@@ -45,12 +48,20 @@ class SessionStore(private val context: Context) {
         context.dataStore.edit { it[KEY_BATTERY] = value }
     }
 
-    suspend fun cacheProductConfig(pinCap: Int?, windowMinutes: Int?) {
+    suspend fun cacheProductConfig(
+        pinCap: Int?,
+        windowMinutes: Int?,
+        emergencyOn: Boolean?,
+        emergencyHours: Int?,
+    ) {
         val cap = pinCap?.takeIf { it in 1..30 } ?: 3
         val window = windowMinutes?.takeIf { it in 1..1440 } ?: 15
+        val hours = emergencyHours?.takeIf { it in 1..24 } ?: 1
         context.dataStore.edit {
             it[KEY_PIN_CAP] = cap
             it[KEY_PIN_WINDOW] = window
+            it[KEY_EMERGENCY_ON] = emergencyOn != false
+            it[KEY_EMERGENCY_HOURS] = hours
         }
     }
 
@@ -59,6 +70,12 @@ class SessionStore(private val context: Context) {
     suspend fun cachedPinWindowMs(): Long = pinWindowMinutes.first() * 60_000L
 
     suspend fun cachedPinWindowMinutes(): Int = pinWindowMinutes.first()
+
+    suspend fun cachedEmergencyEnabled(): Boolean = emergencyEnabled.first()
+
+    suspend fun cachedEmergencyHours(): Int = emergencyIntervalHours.first()
+
+    suspend fun cachedMaxContacts(): Int = maxContacts.first()
 
     suspend fun clearSession() {
         context.dataStore.edit {
@@ -80,6 +97,7 @@ class SessionStore(private val context: Context) {
                 it[KEY_LIMIT] = cap
                 it[KEY_REMAINING] = subscription?.requestsRemaining ?: cap
             }
+            it[KEY_MAX_CONTACTS] = (subscription?.maxContacts ?: 1).coerceAtLeast(1)
         }
     }
 
@@ -151,5 +169,8 @@ class SessionStore(private val context: Context) {
         val KEY_PERIOD_END = stringPreferencesKey("usage_period_end")
         val KEY_PIN_CAP = intPreferencesKey("pin_attempt_cap")
         val KEY_PIN_WINDOW = intPreferencesKey("pin_window_minutes")
+        val KEY_EMERGENCY_ON = booleanPreferencesKey("emergency_feature")
+        val KEY_EMERGENCY_HOURS = intPreferencesKey("emergency_hours")
+        val KEY_MAX_CONTACTS = intPreferencesKey("max_contacts")
     }
 }

@@ -66,6 +66,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var failedCount by remember { mutableStateOf(0) }
     var pinCap by remember { mutableStateOf(3) }
     var pinWindowMin by remember { mutableStateOf(15) }
+    var maxContacts by remember { mutableStateOf(1) }
     var preferBattery by remember { mutableStateOf(false) }
 
     var currentPin by remember { mutableStateOf("") }
@@ -84,6 +85,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             history = db.locationHistory().latest()
             pinCap = session.cachedPinAttemptCap()
             pinWindowMin = session.cachedPinWindowMinutes()
+            maxContacts = session.cachedMaxContacts()
             val windowStart = System.currentTimeMillis() - session.cachedPinWindowMs()
             db.failedPins().deleteOlderThan(windowStart)
             failedCount = db.failedPins().countSince(windowStart)
@@ -166,9 +168,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Spacer(Modifier.height(8.dp))
                     Text(
                         if (contacts.isEmpty()) {
-                            "List is empty: any sender with the correct PIN can request location. Add a number to restrict access."
+                            "List is empty: any sender with the correct PIN can request location. Your plan allows $maxContacts trusted number${if (maxContacts == 1) "" else "s"}."
                         } else {
-                            "Only these numbers can request location, even if they know the PIN."
+                            "Only these numbers can request location. ${contacts.size} of $maxContacts used on this plan."
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -185,7 +187,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                             SlamTextButton(text = "Remove", onClick = { pendingDelete = contact })
                         }
                     }
-                    SlamPrimaryButton(text = "Add number", onClick = { sheetOpen = true })
+                    if (contacts.size >= maxContacts) {
+                        Text(
+                            "This plan’s trusted-number limit is full. Remove a number or upgrade.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        SlamPrimaryButton(text = "Add number", onClick = { sheetOpen = true })
+                    }
                 }
             }
 
@@ -267,6 +276,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                             return@SlamPrimaryButton
                         }
                         scope.launch {
+                            val cap = session.cachedMaxContacts()
+                            if (db.trustedNumbers().count() >= cap) {
+                                formError = "This plan allows $cap trusted number${if (cap == 1) "" else "s"}. Remove one or upgrade."
+                                return@launch
+                            }
                             val normalized = PhoneNumbers.last10(newNumber)
                             if (db.trustedNumbers().findByNormalized(normalized) != null) {
                                 formError = "That number is already on the list."
