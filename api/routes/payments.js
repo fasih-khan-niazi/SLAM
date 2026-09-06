@@ -3,6 +3,8 @@ const multer = require('multer')
 const { protect, requireAdmin } = require('../middleware/auth')
 const { sendEmail } = require('../utils/email')
 const { isConfigured, uploadPaymentScreenshot } = require('../utils/cloudinary')
+const { getSystemConfig } = require('../utils/config')
+const { notifyAdmins, notifyUser } = require('../utils/notify')
 const { ok, fail } = require('../utils/http')
 const { cancelOtherActiveSubscriptions } = require('../utils/subscription')
 const {
@@ -42,6 +44,14 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
 
     if (!['jazzcash', 'easypaisa'].includes(payment_method)) {
       return fail(res, 400, 'payment_method must be jazzcash or easypaisa')
+    }
+
+    const config = await getSystemConfig()
+    if (config.maintenance) {
+      return fail(res, 503, 'Service is paused for maintenance')
+    }
+    if (!config.payments_enabled) {
+      return fail(res, 503, 'Payments are paused right now')
     }
 
     if (!isConfigured()) {
@@ -87,6 +97,18 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
 
     const adminInbox = process.env.ADMIN_EMAIL
     const publicApi = process.env.API_PUBLIC_URL || 'http://localhost:3000'
+
+    await notifyAdmins(
+      'New payment to review',
+      `${req.user.name} submitted ${subscription.plan.name} (Rs ${subscription.plan.price_pkr}).`,
+      'payment',
+    )
+    await notifyUser(
+      user_id,
+      'Payment submitted',
+      `Your ${subscription.plan.name} receipt is waiting for review.`,
+      'payment',
+    )
 
     if (adminInbox) {
       await sendEmail(
@@ -184,6 +206,12 @@ router.patch('/admin/payments/:id/approve', protect, requireAdmin, async (req, r
     )
 
     if (payment.User) {
+      await notifyUser(
+        payment.user_id,
+        'Payment approved',
+        `Your ${payment.plan.name} plan is now active.`,
+        'payment',
+      )
       await sendEmail(
         payment.User.email,
         'Your SLAM subscription is active',
@@ -223,6 +251,12 @@ router.patch('/admin/payments/:id/reject', protect, requireAdmin, async (req, re
     )
 
     if (payment.User) {
+      await notifyUser(
+        payment.user_id,
+        'Payment rejected',
+        `We could not verify transaction ${payment.transaction_id}.`,
+        'payment',
+      )
       await sendEmail(
         payment.User.email,
         'SLAM payment could not be verified',

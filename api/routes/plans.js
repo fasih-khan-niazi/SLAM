@@ -1,6 +1,7 @@
 const express = require('express')
 const { protect } = require('../middleware/auth')
 const { SubscriptionPlan, Subscription } = require('../models')
+const { getSystemConfig } = require('../utils/config')
 const { ok, fail } = require('../utils/http')
 const {
   addDays,
@@ -31,6 +32,11 @@ router.post('/subscribe', protect, async (req, res) => {
     const user_id = req.user.id
 
     if (!plan_id) return fail(res, 400, 'plan_id is required')
+
+    const config = await getSystemConfig()
+    if (config.maintenance) {
+      return fail(res, 503, 'Service is paused for maintenance')
+    }
 
     const plan = await SubscriptionPlan.findByPk(plan_id)
     if (!plan || !plan.is_active) {
@@ -81,6 +87,10 @@ router.post('/subscribe', protect, async (req, res) => {
         },
         201
       )
+    }
+
+    if (!config.payments_enabled) {
+      return fail(res, 503, 'Payments are paused right now')
     }
 
     if (active && active.plan && active.plan.price_pkr > 0) {
