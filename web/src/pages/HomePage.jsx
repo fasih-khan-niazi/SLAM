@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { listNotifications, markNotificationRead } from '../api/endpoints'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { Modal } from '../components/Modal'
@@ -30,8 +31,27 @@ function statusLabel(status) {
 }
 
 export function HomePage() {
-  const { user, subscription, ready, logout } = useAuth()
+  const { token, user, subscription, ready, logout } = useAuth()
   const [confirmOut, setConfirmOut] = useState(false)
+  const [notes, setNotes] = useState(null)
+
+  useEffect(() => {
+    if (!token) return
+    listNotifications(token)
+      .then((res) => setNotes(res.data.notifications || []))
+      .catch(() => setNotes([]))
+  }, [token])
+
+  async function onRead(id) {
+    try {
+      await markNotificationRead(token, id)
+      setNotes((prev) => (prev || []).map((item) => (
+        item.id === id ? { ...item, read: true } : item
+      )))
+    } catch {
+      // Keep the list as-is if the mark-read call fails.
+    }
+  }
 
   if (ready && !user) return <Navigate to="/login" replace />
 
@@ -68,6 +88,31 @@ export function HomePage() {
             ) : null}
           </Card>
         )}
+
+        <Card>
+          <h2>Notifications</h2>
+          {!notes ? (
+            <Skeleton height={88} />
+          ) : notes.length === 0 ? (
+            <p className="lede">No alerts yet. Payment updates will show up here.</p>
+          ) : (
+            <ul className="muted" style={{ listStyle: 'none', padding: 0, margin: '16px 0 0' }}>
+              {notes.slice(0, 8).map((item) => (
+                <li key={item.id} style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+                  <strong>{item.title}</strong>
+                  {item.read ? null : <span className="badge" style={{ marginLeft: 8 }}>New</span>}
+                  <br />
+                  {item.body}
+                  {item.read ? null : (
+                    <div style={{ marginTop: 8 }}>
+                      <Button variant="ghost" onClick={() => onRead(item.id)}>Mark read</Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
 
         <Card>
           <h2>Upgrade or pay</h2>
