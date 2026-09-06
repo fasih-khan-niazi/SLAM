@@ -113,6 +113,12 @@ try {
 
 Expect `401`.
 
+## 13. Login rate limit (Phase 12)
+
+Fifteen sign-in posts from the same IP in 15 minutes return `429` with `Too many sign-in attempts`. Register is capped at 8.
+
+Duplicate `transaction_id` on `POST /api/payments/submit` still returns `400`.
+
 ## Admin panel
 
 Browser: http://localhost:3000/admin  
