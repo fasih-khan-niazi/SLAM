@@ -14,7 +14,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.slam.app.MainActivity
 import com.slam.app.R
+import com.slam.app.data.EmergencyPrefs
 import com.slam.app.data.ListenerPrefs
+import com.slam.app.sms.EmergencyScheduler
 import com.slam.app.sms.LocateRequestHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -112,6 +114,8 @@ class SlamListenerService : Service() {
 
         fun stop(context: Context) {
             ListenerPrefs(context).setListening(false)
+            EmergencyPrefs(context).setOn(false)
+            EmergencyScheduler.stop(context)
             val intent = Intent(context, SlamListenerService::class.java).setAction(ACTION_STOP)
             try {
                 context.startForegroundService(intent)

@@ -26,8 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.slam.app.BuildConfig
+import com.slam.app.data.EmergencyPrefs
 import com.slam.app.data.ListenerPrefs
 import com.slam.app.data.SessionStore
+import com.slam.app.data.local.SlamDatabase
+import com.slam.app.sms.EmergencyScheduler
 import com.slam.app.data.remote.SlamApiFactory
 import com.slam.app.data.remote.SubscriptionInfo
 import androidx.compose.foundation.text.KeyboardOptions
@@ -64,6 +67,10 @@ fun HomeScreen(
     var pinError by remember { mutableStateOf<String?>(null) }
     var listenerNote by remember { mutableStateOf<String?>(null) }
     var listening by remember { mutableStateOf(ListenerPrefs(context).isListening()) }
+    var emergencyOn by remember { mutableStateOf(EmergencyPrefs(context).isOn()) }
+    var emergencyAllowed by remember { mutableStateOf(true) }
+    var emergencyHours by remember { mutableStateOf(1) }
+    var emergencyNote by remember { mutableStateOf<String?>(null) }
     var cachedRemaining by remember { mutableStateOf<Int?>(null) }
     var cachedUnlimited by remember { mutableStateOf(false) }
     var permissionNote by remember { mutableStateOf("SMS and location permissions are required for tracking.") }
@@ -90,7 +97,12 @@ fun HomeScreen(
             val api = SlamApiFactory.create(base)
             runCatching {
                 val config = api.config().body()?.data
-                store.cacheProductConfig(config?.pinAttemptCap, config?.pinWindowMinutes)
+                store.cacheProductConfig(
+                    config?.pinAttemptCap,
+                    config?.pinWindowMinutes,
+                    config?.emergencyEnabled,
+                    config?.emergencyIntervalHours,
+                )
             }
             if (token.isNotBlank()) {
                 val response = api.me("Bearer $token")
@@ -106,6 +118,9 @@ fun HomeScreen(
         } finally {
             cachedUnlimited = store.cachedUnlimited.first()
             cachedRemaining = store.cachedRemaining.first().let { if (it == Int.MAX_VALUE) null else it }
+            emergencyAllowed = store.cachedEmergencyEnabled()
+            emergencyHours = store.cachedEmergencyHours()
+            emergencyOn = EmergencyPrefs(context).isOn()
             loading = false
         }
     }
@@ -175,7 +190,10 @@ fun HomeScreen(
                             text = "Stop listening",
                             onClick = {
                                 SlamListenerService.stop(context)
+                                EmergencyPrefs(context).setOn(false)
+                                EmergencyScheduler.stop(context)
                                 listening = false
+                                emergencyOn = false
                                 listenerNote = "Stopped. Incoming SLAM texts will be ignored until you start again."
                             },
                         )
@@ -210,6 +228,59 @@ fun HomeScreen(
                                 }
                             },
                         )
+                    }
+                }
+            }
+            if (pinReady && emergencyAllowed) {
+                Spacer(Modifier.height(12.dp))
+                SlamCard {
+                    Column(Modifier.padding(20.dp)) {
+                        Text("Emergency", style = MaterialTheme.typography.titleLarge)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            if (emergencyOn) {
+                                "Sending location to your trusted numbers every $emergencyHours hour${if (emergencyHours == 1) "" else "s"}."
+                            } else {
+                                "Texts your trusted numbers automatically. Interval is set by the operator (every $emergencyHours hour${if (emergencyHours == 1) "" else "s"})."
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        SlamPrimaryButton(
+                            text = if (emergencyOn) "Emergency on" else "Start emergency",
+                            onClick = {
+                                if (emergencyOn) return@SlamPrimaryButton
+                                scope.launch {
+                                    val trusted = SlamDatabase.get(context).trustedNumbers().count()
+                                    when {
+                                        !listening -> emergencyNote = "Start listening first."
+                                        trusted < 1 -> emergencyNote = "Add at least one trusted number in Settings."
+                                        !store.canLocate() -> emergencyNote = "No locates left on this plan this period."
+                                        else -> {
+                                            EmergencyPrefs(context).setOn(true)
+                                            EmergencyScheduler.pingNow(context)
+                                            EmergencyScheduler.start(context, store.cachedEmergencyHours())
+                                            emergencyOn = true
+                                            emergencyNote = "First location is sending now. The next one is in $emergencyHours hour${if (emergencyHours == 1) "" else "s"}."
+                                        }
+                                    }
+                                }
+                            },
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        SlamTextButton(
+                            text = "Stop emergency",
+                            onClick = {
+                                EmergencyPrefs(context).setOn(false)
+                                EmergencyScheduler.stop(context)
+                                emergencyOn = false
+                                emergencyNote = "Emergency stopped. Trusted numbers will not get timed updates."
+                            },
+                        )
+                        emergencyNote?.let {
+                            Spacer(Modifier.height(10.dp))
+                            Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
