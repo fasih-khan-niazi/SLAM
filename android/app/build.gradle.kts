@@ -14,8 +14,8 @@ android {
         minSdk = 33
         targetSdk = 35
         versionCode = 1
-        versionName = "0.5.0"
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:3000\"")
+        versionName = "1.0.0"
+        buildConfigField("String", "API_BASE_URL", "\"https://slam-api-production-17df.up.railway.app\"")
     }
 
     buildTypes {
@@ -25,9 +25,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-        }
-        debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:3000\"")
         }
     }
 

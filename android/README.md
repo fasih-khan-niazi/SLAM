@@ -89,21 +89,9 @@ If install is blocked: phone → **Install anyway** / allow the computer.
 
 1. **Consent** — tick both boxes → Continue.
 2. **Login**
-   - API must be running on the PC (`http://localhost:3000/health` in the browser).
-   - On the **phone**, `10.0.2.2` is **wrong** (that is emulator-only).
-   - On login, set **API URL** to:
-
-     `http://YOUR_PC_LAN_IP:3000`
-
-     Find the PC IP:
-
-     ```powershell
-     ipconfig
-     ```
-
-     Use the **IPv4** of the Wi‑Fi adapter (example `192.168.1.24`). PC and phone on the **same Wi‑Fi**. Windows Firewall: allow Node on private networks if login cannot connect.
-   - After `slam-api` is on Railway, you can put that `https://…` URL here instead (no path).
-   - Register a user (name, email, password 8+, phone) or sign in. The same API URL field is on **Create account**.
+   - Email and password only. The app talks to the deployed API (no URL field).
+   - Login needs internet on the phone. SMS tracking does not.
+   - Register a user (name, email, password 8+, phone) or sign in.
 3. **Home**
    - **Tracking PIN** — enter 4–6 digits → **Save PIN**. Remember it.
    - **Allow SMS and location** — Allow all (SMS, location, notifications).

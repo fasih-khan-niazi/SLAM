@@ -18,7 +18,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,7 +39,6 @@ import com.slam.app.ui.components.SlamField
 import com.slam.app.ui.components.SlamModal
 import com.slam.app.ui.components.SlamPrimaryButton
 import com.slam.app.ui.components.SlamTextButton
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @Composable
@@ -55,14 +53,8 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
-    var apiUrl by remember { mutableStateOf(BuildConfig.API_BASE_URL) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        val saved = store.apiBaseUrl.first()
-        if (saved.isNotBlank()) apiUrl = saved
-    }
 
     Column(
         modifier = Modifier
@@ -107,13 +99,6 @@ fun LoginScreen(
                 }
             },
         )
-        Spacer(Modifier.height(12.dp))
-        SlamField(
-            value = apiUrl,
-            onValueChange = { apiUrl = it },
-            label = "API URL (phone: use your PC’s LAN IP)",
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-        )
         Spacer(Modifier.height(24.dp))
         SlamPrimaryButton(
             text = "Sign in",
@@ -122,8 +107,8 @@ fun LoginScreen(
                 loading = true
                 scope.launch {
                     try {
-                        store.setApiBaseUrl(apiUrl)
-                        val api = SlamApiFactory.create(apiUrl)
+                        store.setApiBaseUrl(BuildConfig.API_BASE_URL)
+                        val api = SlamApiFactory.create(BuildConfig.API_BASE_URL)
                         val response = api.login(LoginBody(email.trim(), password))
                         val body = response.body()
                         if (response.isSuccessful && body?.success == true && body.data != null) {
@@ -133,7 +118,7 @@ fun LoginScreen(
                             error = body?.message ?: "Could not sign in"
                         }
                     } catch (e: Exception) {
-                        error = "Cannot reach the API. Check the URL and that the server is running."
+                        error = "Cannot reach the server. Check your internet connection."
                     } finally {
                         loading = false
                     }
