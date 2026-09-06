@@ -60,6 +60,9 @@ data class PublicConfig(
     @SerializedName("pin_min_length") val pinMinLength: Int? = null,
     @SerializedName("pin_max_length") val pinMaxLength: Int? = null,
     @SerializedName("pin_attempt_cap") val pinAttemptCap: Int? = null,
+    @SerializedName("pin_window_minutes") val pinWindowMinutes: Int? = null,
+    @SerializedName("login_attempt_cap") val loginAttemptCap: Int? = null,
+    @SerializedName("login_window_minutes") val loginWindowMinutes: Int? = null,
     val maintenance: Boolean? = null,
     @SerializedName("payments_enabled") val paymentsEnabled: Boolean? = null,
 )

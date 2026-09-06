@@ -106,7 +106,7 @@ If install is blocked: phone → **Install anyway** / allow the computer.
      SLAM 1234 LOCATE
      ```
 
-     Replace `1234` with the PIN you saved. A wrong PIN gets no reply. After 8 wrong PINs in 15 minutes (or the admin `pin_attempt_cap`), locates stay silent until the window ends or you update the PIN in Settings.
+     Replace `1234` with the PIN you saved. A wrong PIN gets no reply. After 3 wrong PINs in 15 minutes (or whatever AdminJS → SystemConfig sets for SMS PIN), locates stay silent until the window ends or you update the PIN in Settings.
    - Wait up to ~30 seconds. SIM 2 should get a reply with coordinates. Wrong PIN = **no** reply (logged on device).
 5. **Settings** (from Home)
    - Change PIN (current PIN required).
