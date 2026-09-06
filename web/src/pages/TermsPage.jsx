@@ -30,8 +30,9 @@ export function TermsPage() {
         <Card>
           <h2>PIN attempts</h2>
           <p className="lede">
-            Wrong PIN texts are ignored. After several failures in 15 minutes, the phone stays silent
-            even if the PIN is later correct, until that window ends or you update the PIN in Settings.
+            Wrong PIN texts are ignored. After a few failures (the admin sets the number and the
+            window, default 3 in 15 minutes), the phone stays silent even if the PIN is later
+            correct, until that window ends or you update the PIN in Settings.
           </p>
         </Card>
       </div>
