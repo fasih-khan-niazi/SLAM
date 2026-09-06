@@ -1,6 +1,6 @@
 # Phase 13 — Final implementation plan
 
-**Status:** Plan only. Do not start coding until asked.
+**Status:** Implemented on `dev`. Rebuild the Android app. Refresh `/admin` after the API restarts (first load may bundle the new dashboard).
 
 **This slice:** AdminJS home looks like SLAM, trusted numbers respect the plan cap, emergency locate works and is admin-configurable.
 
