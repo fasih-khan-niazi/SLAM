@@ -35,6 +35,7 @@ const extraOrigins = String(process.env.CORS_ORIGINS || '')
 
 const allowedOrigins = [
   originValue(process.env.FRONTEND_URL),
+  originValue(process.env.API_PUBLIC_URL),
   ...extraOrigins,
   'http://localhost:5173',
   'http://localhost:4173',
