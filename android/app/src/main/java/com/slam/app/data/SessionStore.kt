@@ -54,6 +54,7 @@ class SessionStore(private val context: Context) {
         val limit = subscription?.monthlyLimit
         context.dataStore.edit {
             it[KEY_MONTH] = currentMonth()
+            it[KEY_PERIOD_END] = subscription?.endDate ?: ""
             if (limit == null && subscription?.planName != "Free") {
                 it[KEY_LIMIT] = -1
                 it[KEY_REMAINING] = -1
@@ -105,6 +106,12 @@ class SessionStore(private val context: Context) {
     private fun remainingAfterMonthRoll(prefs: Preferences): Int {
         val limit = prefs[KEY_LIMIT] ?: 5
         if (limit < 0) return Int.MAX_VALUE
+        val periodEnd = prefs[KEY_PERIOD_END].orEmpty()
+        if (periodEnd.isNotBlank()) {
+            val end = runCatching { java.time.Instant.parse(periodEnd) }.getOrNull()
+                ?: runCatching { java.time.LocalDate.parse(periodEnd.take(10)).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant() }.getOrNull()
+            if (end != null && java.time.Instant.now().isAfter(end)) return limit
+        }
         val month = prefs[KEY_MONTH]
         if (month != null && month != currentMonth()) return limit
         return prefs[KEY_REMAINING] ?: limit
@@ -124,5 +131,6 @@ class SessionStore(private val context: Context) {
         val KEY_REMAINING = intPreferencesKey("requests_remaining")
         val KEY_LIMIT = intPreferencesKey("monthly_limit")
         val KEY_MONTH = stringPreferencesKey("usage_month")
+        val KEY_PERIOD_END = stringPreferencesKey("usage_period_end")
     }
 }
