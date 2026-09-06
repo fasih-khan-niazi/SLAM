@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const { sequelize, User } = require('../models')
 const { protect } = require('../middleware/auth')
-const { rateLimit } = require('../middleware/rateLimit')
+const { rateLimit, loginAttemptGuard, recordFailedLogin, clearFailedLogins } = require('../middleware/rateLimit')
 const { ok, fail } = require('../utils/http')
 const {
   normalizeEmail,
@@ -27,12 +27,6 @@ function generateToken(userId) {
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   )
 }
-
-const loginLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 15,
-  message: 'Too many sign-in attempts. Try again in a few minutes.',
-})
 
 const registerLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -119,18 +113,25 @@ router.post('/register', registerLimit, async (req, res) => {
   }
 })
 
-router.post('/login', loginLimit, async (req, res) => {
+router.post('/login', loginAttemptGuard, async (req, res) => {
   const error = validateLogin(req.body)
   if (error) return fail(res, 400, error)
 
   try {
     const email = normalizeEmail(req.body.email)
     const user = await User.findOne({ where: { email } })
-    if (!user) return fail(res, 401, 'Invalid email or password')
+    if (!user) {
+      recordFailedLogin(req)
+      return fail(res, 401, 'Invalid email or password')
+    }
 
     const isMatch = await bcrypt.compare(req.body.password, user.password_hash)
-    if (!isMatch) return fail(res, 401, 'Invalid email or password')
+    if (!isMatch) {
+      recordFailedLogin(req)
+      return fail(res, 401, 'Invalid email or password')
+    }
 
+    clearFailedLogins(req)
     const subscription = await subscriptionPayload(user.id)
 
     return ok(res, 'Signed in', {

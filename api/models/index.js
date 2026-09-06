@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs')
+const { DataTypes } = require('sequelize')
 const sequelize = require('../config/database')
 const User = require('./User')
 const SubscriptionPlan = require('./SubscriptionPlan')
@@ -62,6 +63,36 @@ async function seedPlans() {
   console.log('Subscription plans seeded')
 }
 
+async function ensureSystemConfigColumns() {
+  const qi = sequelize.getQueryInterface()
+  let table
+  try {
+    table = await qi.describeTable('system_config')
+  } catch {
+    return
+  }
+
+  const columns = [
+    ['pin_window_minutes', 15],
+    ['login_attempt_cap', 3],
+    ['login_window_minutes', 15],
+  ]
+  for (const [name, defaultValue] of columns) {
+    if (!table[name]) {
+      await qi.addColumn('system_config', name, {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue,
+      })
+    }
+  }
+
+  await SystemConfig.update(
+    { pin_attempt_cap: 3 },
+    { where: { pin_attempt_cap: 8 } }
+  )
+}
+
 async function seedSystemConfig() {
   const count = await SystemConfig.count()
   if (count > 0) return
@@ -69,7 +100,10 @@ async function seedSystemConfig() {
     sms_prefix: 'SLAM',
     pin_min_length: 4,
     pin_max_length: 6,
-    pin_attempt_cap: 8,
+    pin_attempt_cap: 3,
+    pin_window_minutes: 15,
+    login_attempt_cap: 3,
+    login_window_minutes: 15,
     maintenance: false,
     payments_enabled: true,
     maps_enabled: false,
@@ -103,6 +137,7 @@ async function syncDatabase() {
     // restart until MySQL hits the 64-key limit (users.email, payments.transaction_id).
     await sequelize.sync()
     console.log('Tables synced')
+    await ensureSystemConfigColumns()
     await seedPlans()
     await seedAdmin()
     await seedSystemConfig()

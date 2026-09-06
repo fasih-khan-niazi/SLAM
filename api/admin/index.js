@@ -190,10 +190,59 @@ const admin = new AdminJS({
     {
       resource: SystemConfig,
       options: {
-        listProperties: ['sms_prefix', 'maintenance', 'payments_enabled', 'email_enabled', 'pin_attempt_cap'],
+        listProperties: [
+          'sms_prefix',
+          'login_attempt_cap',
+          'login_window_minutes',
+          'pin_attempt_cap',
+          'pin_window_minutes',
+          'maintenance',
+          'payments_enabled',
+        ],
+        editProperties: [
+          'sms_prefix',
+          'pin_min_length',
+          'pin_max_length',
+          'login_attempt_cap',
+          'login_window_minutes',
+          'pin_attempt_cap',
+          'pin_window_minutes',
+          'maintenance',
+          'payments_enabled',
+          'maps_enabled',
+          'email_enabled',
+        ],
+        properties: {
+          login_attempt_cap: {
+            label: 'Portal login — max failed attempts',
+            description: 'Wrong email/password tries on the website or phone login. After this many from one network, sign-in is blocked until the portal window ends.',
+          },
+          login_window_minutes: {
+            label: 'Portal login — window (minutes)',
+            description: 'How long failed portal logins are counted. Default 15.',
+          },
+          pin_attempt_cap: {
+            label: 'SMS PIN — max wrong attempts',
+            description: 'Wrong SLAM [PIN] LOCATE texts on the phone. After this many, locates stay silent until the SMS window ends.',
+          },
+          pin_window_minutes: {
+            label: 'SMS PIN — window (minutes)',
+            description: 'How long wrong SMS PINs are counted. Default 15. Updating the PIN on the phone clears the count.',
+          },
+        },
         actions: {
           new: { isAccessible: false },
           delete: { isAccessible: false },
+          edit: {
+            layout: [
+              ['sms_prefix'],
+              ['pin_min_length', 'pin_max_length'],
+              ['login_attempt_cap', 'login_window_minutes'],
+              ['pin_attempt_cap', 'pin_window_minutes'],
+              ['maintenance', 'payments_enabled'],
+              ['maps_enabled', 'email_enabled'],
+            ],
+          },
         },
       },
     },

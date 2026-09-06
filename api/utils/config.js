@@ -4,19 +4,31 @@ const DEFAULTS = {
   sms_prefix: 'SLAM',
   pin_min_length: 4,
   pin_max_length: 6,
-  pin_attempt_cap: 8,
+  pin_attempt_cap: 3,
+  pin_window_minutes: 15,
+  login_attempt_cap: 3,
+  login_window_minutes: 15,
   maintenance: false,
   payments_enabled: true,
   maps_enabled: false,
   email_enabled: true,
 }
 
+function clampInt(value, fallback, min, max) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(max, Math.max(min, Math.round(n)))
+}
+
 function publicFields(row) {
   return {
-    sms_prefix: row.sms_prefix,
-    pin_min_length: row.pin_min_length,
-    pin_max_length: row.pin_max_length,
-    pin_attempt_cap: row.pin_attempt_cap,
+    sms_prefix: row.sms_prefix || DEFAULTS.sms_prefix,
+    pin_min_length: clampInt(row.pin_min_length, 4, 4, 8),
+    pin_max_length: clampInt(row.pin_max_length, 6, 4, 8),
+    pin_attempt_cap: clampInt(row.pin_attempt_cap, 3, 1, 30),
+    pin_window_minutes: clampInt(row.pin_window_minutes, 15, 1, 1440),
+    login_attempt_cap: clampInt(row.login_attempt_cap, 3, 1, 30),
+    login_window_minutes: clampInt(row.login_window_minutes, 15, 1, 1440),
     maintenance: Boolean(row.maintenance),
     payments_enabled: Boolean(row.payments_enabled),
     maps_enabled: Boolean(row.maps_enabled),
@@ -30,10 +42,4 @@ async function getSystemConfig() {
   return publicFields(row)
 }
 
-async function seedSystemConfig() {
-  const count = await SystemConfig.count()
-  if (count > 0) return
-  await SystemConfig.create(DEFAULTS)
-}
-
-module.exports = { getSystemConfig, seedSystemConfig, publicFields }
+module.exports = { getSystemConfig, publicFields, DEFAULTS }
