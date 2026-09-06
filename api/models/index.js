@@ -79,7 +79,9 @@ async function syncDatabase() {
   try {
     await sequelize.authenticate()
     console.log('Database connected')
-    await sequelize.sync({ alter: true })
+    // Do not use { alter: true }: Sequelize re-adds unique indexes on every
+    // restart until MySQL hits the 64-key limit (users.email, payments.transaction_id).
+    await sequelize.sync()
     console.log('Tables synced')
     await seedPlans()
     await seedAdmin()
