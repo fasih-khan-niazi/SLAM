@@ -38,7 +38,9 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Stop listening (clear button; stops the foreground service) | P0 |
 | POST location log when online | P1 |
 
-**Done when:** Free plan allows 5 requests; the 6th is blocked even if the network is off (using cache).
+**Status:** Code on `dev` — usage cache, silent block at the cap, Stop listening, location log when online.
+
+**Done when:** Free plan allows 5 requests; the 6th is blocked even if the network is off (using cache). Rebuild the app to pick this up.
 
 ---
 
