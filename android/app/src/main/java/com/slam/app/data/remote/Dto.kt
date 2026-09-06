@@ -55,6 +55,15 @@ data class LocationLogBody(
     @SerializedName("requested_by") val requestedBy: String,
 )
 
+data class PublicConfig(
+    @SerializedName("sms_prefix") val smsPrefix: String? = null,
+    @SerializedName("pin_min_length") val pinMinLength: Int? = null,
+    @SerializedName("pin_max_length") val pinMaxLength: Int? = null,
+    @SerializedName("pin_attempt_cap") val pinAttemptCap: Int? = null,
+    val maintenance: Boolean? = null,
+    @SerializedName("payments_enabled") val paymentsEnabled: Boolean? = null,
+)
+
 data class LocationLogResult(
     @SerializedName("requests_used") val requestsUsed: Int?,
     @SerializedName("requests_remaining") val requestsRemaining: Int?,

@@ -28,6 +28,9 @@ interface SlamApi {
         @Body body: LocationLogBody,
     ): Response<ApiEnvelope<LocationLogResult>>
 
+    @GET("api/config")
+    suspend fun config(): Response<ApiEnvelope<PublicConfig>>
+
     @GET("health")
     suspend fun health(): Response<Map<String, Any>>
 }

@@ -87,7 +87,7 @@ If install is blocked: phone → **Install anyway** / allow the computer.
 
 ## 5. What to do in the app (in order)
 
-1. **Consent** — tick both boxes → Continue.
+1. **Consent** — tick both boxes → Continue. Tracking stays off until you accept.
 2. **Login**
    - Email and password only. The app talks to the deployed API (no URL field).
    - Login needs internet on the phone. SMS tracking does not.
@@ -106,7 +106,7 @@ If install is blocked: phone → **Install anyway** / allow the computer.
      SLAM 1234 LOCATE
      ```
 
-     Replace `1234` with the PIN you saved.
+     Replace `1234` with the PIN you saved. A wrong PIN gets no reply. After 8 wrong PINs in 15 minutes (or the admin `pin_attempt_cap`), locates stay silent until the window ends or you update the PIN in Settings.
    - Wait up to ~30 seconds. SIM 2 should get a reply with coordinates. Wrong PIN = **no** reply (logged on device).
 5. **Settings** (from Home)
    - Change PIN (current PIN required).
