@@ -111,11 +111,11 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Stealth: hide launcher icon | P3 | **Parked** (clients first) |
 | Premium Maps UI on the portal | P2 | **Parked** |
 | First-run consent + silent locate guard | — | **Already done** (Phase 12) |
-| Release APK | P0 | **Parked** |
+| Release APK (signed, not debug) | P0 | **This PC** — see [android/README.md](../android/README.md) §6 |
 | Deploy slam-web | P0 | **Parked** |
 | Handover notes `docs/handover.md` | P1 | **Parked** |
 | Merge `dev` → `main` so Railway `/admin` CORS ships | P0 | Process, when you PR |
 
-**Status:** Custom SLAM admin home + navigation, trusted-number cap on the phone, emergency SMS (admin interval 1–24 hours, no cron). Rebuild the app. Stealth, Maps, APK, slam-web, handover stay parked.
+**Status:** Custom SLAM admin home + navigation, trusted-number cap on the phone, emergency SMS (admin interval 1–24 hours, no cron). Signed release APK is wired on this PC. Stealth, Maps, slam-web, handover stay parked.
 
 **Done when (this slice):** `/admin` is SLAM-branded; Free cannot add a second trusted number; emergency texts trusted numbers on the admin interval.
