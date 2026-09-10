@@ -122,11 +122,44 @@ Oppo may kill background apps. If SMS never wakes SLAM:
 
 ---
 
-## 6. Generate an APK to send later
+## 6. APK for clients (not the debug file)
 
-**Build → Build Bundle(s) / APK(s) → Build APK(s).**  
-Output: `android/app/build/outputs/apk/debug/app-debug.apk`  
-(That folder is gitignored; you send the file yourself.)
+**Do not send `app-debug.apk`.** That is what Play Protect blocked. Studio **Run** still works on your Oppo because USB/ADB install is not the same as a WhatsApp download.
+
+### Build a signed release APK
+
+One-time on this PC: `android/slam-release.jks` and `android/keystore.properties` (gitignored). Copy both somewhere safe (USB / Drive, not GitHub). If you lose them, every client must uninstall SLAM before installing a new APK.
+
+If this phone already has SLAM from Android Studio **Run**, uninstall it first. Debug and release use different signatures.
+
+In Android Studio (`F:\SLAM\android`):
+
+**Easiest now that signing is wired:** left **Build Variants** → **app** → **release** → **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
+
+Or: **Build → Generate Signed App Bundle or APK → APK**, keystore `F:\SLAM\android\slam-release.jks` (passwords in `keystore.properties` on this PC), **release**, **Finish**.
+
+Output: `android/app/build/outputs/apk/release/app-release.apk`  
+Rename the copy you send to **`SLAM.apk`**. Prefer Google Drive or email; WhatsApp is the path Play Protect watches most.
+
+Gradle panel: **app → Tasks → build → assembleRelease**.
+
+### What clients do when Play Protect still warns
+
+Sideloaded apps that use SMS + location often still get a warning. That is Google, not a virus in SLAM. Ask them to:
+
+1. Save **SLAM.apk** to **Downloads** (not Install from the WhatsApp chat).
+2. **Play Store → profile photo → Play Protect → Settings (gear) → Scan apps with Play Protect → Off.**
+3. **Settings → Apps → Special app access → Install unknown apps → Files / My Files → Allow.**
+4. Open **Files**, tap **SLAM.apk**, Install.
+5. Turn **Play Protect scanning back On** after it installs.
+
+On Oppo: **Install via USB** is only for your cable. Clients need **Install unknown apps** for Files.
+
+You can paste this to a client:
+
+> Save SLAM.apk to Downloads (don’t tap Install inside WhatsApp). Play Store → profile → Play Protect → gear → turn Scan apps off. Then Files app → SLAM.apk → Install. Turn Play Protect scanning back on after it installs.
+
+Play Store listing is **not** a good fix for SLAM: Google almost never allows `RECEIVE_SMS` / `SEND_SMS` except for the default SMS app.
 
 ---
 
