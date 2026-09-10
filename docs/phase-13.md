@@ -4,7 +4,9 @@
 
 **This slice:** AdminJS home looks like SLAM, trusted numbers respect the plan cap, emergency locate works and is admin-configurable.
 
-**Parked (later):** stealth, Maps UI, release APK, slam-web deploy, handover notes. Also: merge `dev` → `main` when you want Railway `/admin` CORS.
+**Parked (later):** stealth, Maps UI, slam-web deploy, handover notes. Also: merge `dev` → `main` when you want Railway `/admin` CORS.
+
+**Client APK:** signed release is wired (`android/keystore.properties` + `slam-release.jks` on this PC, gitignored). Play Store is not a path for SMS apps. Clients still sideload; see [android/README.md](../android/README.md) section 6.
 
 ---
 
@@ -84,7 +86,7 @@ Empty states and errors on the new Emergency block, trusted-cap modal, and admin
 |------|--------|
 | **Stealth** | Hide launcher icon. You will discuss with clients first. |
 | **Maps UI** | Premium history map on the portal. API log already exists. |
-| **Release APK** | Your usual **Build → Build APK(s)** after this slice is on the phone. |
+| **Release APK** | Signing is wired. Build with **Generate Signed APK** / `assembleRelease`, not debug. See [android/README.md](../android/README.md) §6. |
 | **slam-web on Railway** | After `dev` → `main` and `VITE_API_BASE_URL`. |
 | **Handover notes** | After those deploys. |
 | **Start-listening consent popup** | Not requested. First-run consent + silent guard already shipped. |

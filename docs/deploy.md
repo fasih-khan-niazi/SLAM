@@ -107,10 +107,12 @@ npm run preview
 
 ## 3. Phone against Railway
 
-On login / register, set **API URL** to `https://<slam-api-domain>` (no path). SMS still runs only on the device.
+The Android app has **no API URL field**. `BuildConfig.API_BASE_URL` is the Railway API. SMS still runs only on the device.
 
-Debug APK: Android Studio → **Build → Build Bundle(s) / APK(s) → Build APK(s)**.  
-Output: `android/app/build/outputs/apk/debug/app-debug.apk` (gitignored).
+**Do not send `app-debug.apk`.** Play Protect blocks that file for clients. Signed release APK:
+
+Android Studio → **Build → Generate Signed App Bundle or APK → APK**, keystore `android/slam-release.jks` (see [android/README.md](../android/README.md) section 6).  
+Output: `android/app/build/outputs/apk/release/app-release.apk` (gitignored). Rename the copy you send to `SLAM.apk`.
 
 ---
 
