@@ -1,5 +1,8 @@
 package com.slam.app.ui.screens
 
+import android.content.Intent
+import android.provider.Settings
+import android.net.Uri
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +16,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -26,15 +28,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.slam.app.data.SessionStore
+import com.slam.app.data.AppearanceMode
+import com.slam.app.data.UiPreferences
 import com.slam.app.data.local.LocationHistoryEntity
 import com.slam.app.data.local.SlamDatabase
 import com.slam.app.data.local.TrustedNumberEntity
 import com.slam.app.security.PinStore
+import com.slam.app.service.SlamListenerService
 import com.slam.app.sms.PhoneNumbers
 import com.slam.app.ui.components.SlamCard
 import com.slam.app.ui.components.SlamField
@@ -42,22 +46,27 @@ import com.slam.app.ui.components.SlamModal
 import com.slam.app.ui.components.SlamPrimaryButton
 import com.slam.app.ui.components.SlamSkeleton
 import com.slam.app.ui.components.SlamTextButton
-import com.slam.app.ui.components.slamHaptic
+import com.slam.app.ui.components.LocalSlamSnackbarHostState
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(
+    onBack: (() -> Unit)? = null,
+    onSignOut: () -> Unit = {},
+) {
     val context = LocalContext.current
-    val view = LocalView.current
     val db = remember { SlamDatabase.get(context) }
     val pinStore = remember { PinStore(context) }
     val session = remember { SessionStore(context) }
+    val uiPreferences = remember { UiPreferences(context) }
     val scope = rememberCoroutineScope()
+    val snackbar = LocalSlamSnackbarHostState.current
     val historyFormat = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
 
     var loading by remember { mutableStateOf(true) }
@@ -66,8 +75,14 @@ fun SettingsScreen(onBack: () -> Unit) {
     var failedCount by remember { mutableStateOf(0) }
     var pinCap by remember { mutableStateOf(3) }
     var pinWindowMin by remember { mutableStateOf(15) }
+    var pinMinLength by remember { mutableStateOf(4) }
+    var pinMaxLength by remember { mutableStateOf(6) }
     var maxContacts by remember { mutableStateOf(1) }
     var preferBattery by remember { mutableStateOf(false) }
+    val appearance by uiPreferences.appearance.collectAsStateWithLifecycle(AppearanceMode.DARK)
+    val hapticsEnabled by uiPreferences.hapticsEnabled.collectAsStateWithLifecycle(true)
+    val lastKnownEnabled by uiPreferences.lastKnownFallbackEnabled.collectAsStateWithLifecycle(true)
+    var confirmSignOut by remember { mutableStateOf(false) }
 
     var currentPin by remember { mutableStateOf("") }
     var newPin by remember { mutableStateOf("") }
@@ -85,6 +100,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             history = db.locationHistory().latest()
             pinCap = session.cachedPinAttemptCap()
             pinWindowMin = session.cachedPinWindowMinutes()
+            pinMinLength = session.cachedPinMinLength()
+            pinMaxLength = session.cachedPinMaxLength()
             maxContacts = session.cachedMaxContacts()
             val windowStart = System.currentTimeMillis() - session.cachedPinWindowMs()
             db.failedPins().deleteOlderThan(windowStart)
@@ -102,7 +119,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
     ) {
-        SlamTextButton(text = "Back", onClick = onBack)
+        onBack?.let { SlamTextButton(text = "Back", onClick = it) }
         Text("Settings", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(8.dp))
         Text(
@@ -122,7 +139,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Spacer(Modifier.height(8.dp))
                     SlamField(
                         value = currentPin,
-                        onValueChange = { if (it.length <= 6 && it.all { ch -> ch.isDigit() }) currentPin = it },
+                        onValueChange = { if (it.length <= pinMaxLength && it.all { ch -> ch.isDigit() }) currentPin = it },
                         label = "Current PIN",
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -130,8 +147,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Spacer(Modifier.height(8.dp))
                     SlamField(
                         value = newPin,
-                        onValueChange = { if (it.length <= 6 && it.all { ch -> ch.isDigit() }) newPin = it },
-                        label = "New PIN (4–6 digits)",
+                        onValueChange = { if (it.length <= pinMaxLength && it.all { ch -> ch.isDigit() }) newPin = it },
+                        label = "New PIN ($pinMinLength–$pinMaxLength digits)",
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                     )
@@ -141,7 +158,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                         onClick = {
                             when {
                                 !pinStore.verify(currentPin) -> pinMessage = "Current PIN is incorrect."
-                                !pinStore.setPin(newPin) -> pinMessage = "New PIN must be 4 to 6 digits."
+                                !pinStore.setPin(newPin, pinMinLength, pinMaxLength) ->
+                                    pinMessage = "New PIN must be $pinMinLength to $pinMaxLength digits."
                                 else -> {
                                     currentPin = ""
                                     newPin = ""
@@ -149,6 +167,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                                     scope.launch {
                                         db.failedPins().clear()
                                         reload()
+                                        snackbar.showSnackbar("PIN updated securely.")
                                     }
                                 }
                             }
@@ -168,7 +187,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Spacer(Modifier.height(8.dp))
                     Text(
                         if (contacts.isEmpty()) {
-                            "List is empty: any sender with the correct PIN can request location. Your plan allows $maxContacts trusted number${if (maxContacts == 1) "" else "s"}."
+                            "Add a trusted number before tracking can start. Your plan allows $maxContacts trusted number${if (maxContacts == 1) "" else "s"}."
                         } else {
                             "Only these numbers can request location. ${contacts.size} of $maxContacts used on this plan."
                         },
@@ -203,28 +222,52 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Column(Modifier.padding(20.dp)) {
                     Text("Location style", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Prefer battery")
-                            Text(
-                                "Skip GPS first. Also used automatically below 15% battery.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(
-                            checked = preferBattery,
-                            onCheckedChange = {
-                                view.slamHaptic()
-                                preferBattery = it
-                                scope.launch { session.setPreferBattery(it) }
-                            },
-                        )
-                    }
+                    com.slam.app.ui.components.SlamSwitchRow(
+                        title = "Prefer battery",
+                        subtitle = "Skip GPS first. Also used automatically below 15% battery.",
+                        checked = preferBattery,
+                        onCheckedChange = {
+                            preferBattery = it
+                            scope.launch { session.setPreferBattery(it) }
+                        },
+                    )
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "Wrong PIN texts in the last $pinWindowMin minutes: $failedCount of $pinCap. " +
                             "After the cap, locates stay silent until the window resets. Updating the PIN clears the count.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            SlamCard {
+                Column(Modifier.padding(20.dp)) {
+                    Text("Device reliability", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Android and Oppo battery controls can stop background tracking. Review both after installing an update.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    SlamPrimaryButton(
+                        text = "Open SLAM app settings",
+                        style = com.slam.app.ui.components.SlamButtonStyle.SECONDARY,
+                        onClick = {
+                            context.startActivity(
+                                Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:${context.packageName}"),
+                                ),
+                            )
+                        },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    SlamTextButton(
+                        text = "Review battery optimization",
+                        onClick = {
+                            context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                        },
                     )
                 }
             }
@@ -246,6 +289,58 @@ fun SettingsScreen(onBack: () -> Unit) {
                             )
                         }
                     }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            SlamCard {
+                Column(Modifier.padding(20.dp)) {
+                    Text("App preferences", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Appearance · ${appearance.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(Modifier.fillMaxWidth()) {
+                        AppearanceMode.entries.forEach { mode ->
+                            SlamTextButton(
+                                text = mode.name.lowercase().replaceFirstChar { it.uppercase() } +
+                                    if (mode == appearance) " (on)" else "",
+                                onClick = { scope.launch { uiPreferences.setAppearance(mode) } },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                    com.slam.app.ui.components.SlamSwitchRow(
+                        title = "Haptic feedback",
+                        subtitle = "Vibrate gently for controls and confirmations.",
+                        checked = hapticsEnabled,
+                        onCheckedChange = { scope.launch { uiPreferences.setHapticsEnabled(it) } },
+                    )
+                    com.slam.app.ui.components.SlamSwitchRow(
+                        title = "Use last known location",
+                        subtitle = "Clearly label and send SLAM's saved fix if a live fix is unavailable.",
+                        checked = lastKnownEnabled,
+                        onCheckedChange = { scope.launch { uiPreferences.setLastKnownFallbackEnabled(it) } },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            SlamCard {
+                Column(Modifier.padding(20.dp)) {
+                    Text("Account", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Signing out stops tracking and clears this account's PIN, contacts and local activity.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    SlamPrimaryButton(
+                        text = "Sign out",
+                        style = com.slam.app.ui.components.SlamButtonStyle.DESTRUCTIVE,
+                        onClick = { confirmSignOut = true },
+                    )
                 }
             }
         }
@@ -297,6 +392,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             newNumber = ""
                             sheetOpen = false
                             reload()
+                            snackbar.showSnackbar("Trusted number added.")
                         }
                     },
                 )
@@ -325,11 +421,35 @@ fun SettingsScreen(onBack: () -> Unit) {
             onConfirm = {
                 scope.launch {
                     db.trustedNumbers().delete(contact)
+                    if (db.trustedNumbers().count() == 0) {
+                        SlamListenerService.stop(context)
+                    }
                     pendingDelete = null
                     reload()
+                    snackbar.showSnackbar(
+                        if (db.trustedNumbers().count() == 0) {
+                            "Trusted number removed. Tracking stopped for safety."
+                        } else {
+                            "Trusted number removed."
+                        },
+                    )
                 }
             },
             onDismiss = { pendingDelete = null },
+        )
+    }
+
+    if (confirmSignOut) {
+        SlamModal(
+            title = "Sign out and stop tracking?",
+            message = "SLAM will stop listening and emergency updates. This account's PIN, trusted contacts, activity and pending location data will be removed from this phone.",
+            confirmLabel = "Sign out and clear",
+            destructive = true,
+            onConfirm = {
+                confirmSignOut = false
+                onSignOut()
+            },
+            onDismiss = { confirmSignOut = false },
         )
     }
 }

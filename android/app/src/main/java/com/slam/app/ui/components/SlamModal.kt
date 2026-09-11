@@ -62,6 +62,11 @@ fun SlamModal(
                 SlamPrimaryButton(
                     text = confirmLabel,
                     onClick = onConfirm,
+                    style = if (destructive) {
+                        SlamButtonStyle.DESTRUCTIVE
+                    } else {
+                        SlamButtonStyle.PRIMARY
+                    },
                 )
                 if (cancelLabel.isNotEmpty()) {
                     SlamTextButton(

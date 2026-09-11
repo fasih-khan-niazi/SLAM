@@ -2,6 +2,7 @@ package com.slam.app.ui.components
 
 import android.view.HapticFeedbackConstants
 import android.view.View
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -9,6 +10,9 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,20 +28,27 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.slam.app.ui.theme.SlamDark
+import androidx.compose.ui.graphics.Color
 
-fun View.slamHaptic() {
-    performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+val LocalSlamHapticsEnabled = compositionLocalOf { true }
+
+fun View.slamHaptic(enabled: Boolean = true) {
+    if (enabled) performHapticFeedback(HapticFeedbackConstants.CONFIRM)
 }
+
+enum class SlamButtonStyle { PRIMARY, SECONDARY, DESTRUCTIVE }
 
 @Composable
 fun SlamPrimaryButton(
@@ -46,27 +57,47 @@ fun SlamPrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     loading: Boolean = false,
+    style: SlamButtonStyle = SlamButtonStyle.PRIMARY,
 ) {
     val view = LocalView.current
+    val haptics = LocalSlamHapticsEnabled.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.985f else 1f, label = "button-press")
+    val container = when (style) {
+        SlamButtonStyle.PRIMARY -> MaterialTheme.colorScheme.primary
+        SlamButtonStyle.SECONDARY -> MaterialTheme.colorScheme.surfaceVariant
+        SlamButtonStyle.DESTRUCTIVE -> MaterialTheme.colorScheme.error
+    }
+    val content = when (style) {
+        SlamButtonStyle.PRIMARY -> MaterialTheme.colorScheme.onPrimary
+        SlamButtonStyle.SECONDARY -> MaterialTheme.colorScheme.onSurface
+        SlamButtonStyle.DESTRUCTIVE -> MaterialTheme.colorScheme.onError
+    }
     Button(
         onClick = {
-            view.slamHaptic()
+            view.slamHaptic(haptics)
             onClick()
         },
         enabled = enabled && !loading,
+        interactionSource = interaction,
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp),
+            .height(52.dp)
+            .scale(scale),
         shape = RoundedCornerShape(999.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
+            containerColor = container,
+            contentColor = content,
         ),
+        border = if (style == SlamButtonStyle.SECONDARY) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        } else null,
         contentPadding = PaddingValues(horizontal = 20.dp),
     ) {
         if (loading) {
             CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.onPrimary,
+                color = content,
                 strokeWidth = 2.dp,
                 modifier = Modifier.height(22.dp),
             )
@@ -83,8 +114,9 @@ fun SlamTextButton(
     modifier: Modifier = Modifier,
 ) {
     val view = LocalView.current
+    val haptics = LocalSlamHapticsEnabled.current
     TextButton(onClick = {
-        view.slamHaptic()
+        view.slamHaptic(haptics)
         onClick()
     }, modifier = modifier) {
         Text(text, color = MaterialTheme.colorScheme.primary)
@@ -100,6 +132,8 @@ fun SlamField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     trailingIcon: @Composable (() -> Unit)? = null,
+    isError: Boolean = false,
+    supportingText: String? = null,
 ) {
     OutlinedTextField(
         value = value,
@@ -109,6 +143,8 @@ fun SlamField(
         visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,
         trailingIcon = trailingIcon,
+        isError = isError,
+        supportingText = supportingText?.let { text -> { Text(text) } },
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
         colors = OutlinedTextFieldDefaults.colors(
@@ -133,7 +169,11 @@ fun SlamSkeleton(
         label = "skel-anim",
     )
     val brush = Brush.linearGradient(
-        colors = listOf(SlamDark.SurfaceRaised, SlamDark.Border, SlamDark.SurfaceRaised),
+        colors = listOf(
+            MaterialTheme.colorScheme.surfaceVariant,
+            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+            MaterialTheme.colorScheme.surfaceVariant,
+        ),
         start = Offset(shimmer * 400f, 0f),
         end = Offset(shimmer * 400f + 200f, 200f),
     )
