@@ -12,6 +12,7 @@ data class AuthData(
     val token: String,
     val user: PublicUser,
     val subscription: SubscriptionInfo?,
+    @SerializedName("tracking_pin") val trackingPin: TrackingPinPayload? = null,
 )
 
 data class PublicUser(
@@ -20,6 +21,16 @@ data class PublicUser(
     val email: String,
     val phone: String,
     val role: String,
+)
+
+data class TrackingPinPayload(
+    val salt: String?,
+    val verifier: String?,
+)
+
+data class PinBody(
+    @SerializedName("pin_salt") val pinSalt: String,
+    @SerializedName("pin_verifier") val pinVerifier: String,
 )
 
 data class SubscriptionInfo(
@@ -47,6 +58,11 @@ data class LoginBody(
 data class MeData(
     val user: PublicUser,
     val subscription: SubscriptionInfo?,
+    @SerializedName("tracking_pin") val trackingPin: TrackingPinPayload? = null,
+)
+
+data class PinSaveResult(
+    @SerializedName("tracking_pin") val trackingPin: TrackingPinPayload?,
 )
 
 data class LocationLogBody(

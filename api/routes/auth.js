@@ -44,6 +44,14 @@ function publicUser(user) {
   }
 }
 
+function trackingPinPayload(user) {
+  if (!user.pin_salt || !user.pin_verifier) return null
+  return {
+    salt: user.pin_salt,
+    verifier: user.pin_verifier,
+  }
+}
+
 async function subscriptionPayload(userId) {
   const current = await getCurrentSubscription(userId)
 
@@ -103,7 +111,12 @@ router.post('/register', registerLimit, async (req, res) => {
     return ok(
       res,
       'Account created',
-      { token: generateToken(user.id), user: publicUser(user), subscription },
+      {
+        token: generateToken(user.id),
+        user: publicUser(user),
+        subscription,
+        tracking_pin: trackingPinPayload(user),
+      },
       201
     )
   } catch (err) {
@@ -138,6 +151,7 @@ router.post('/login', loginAttemptGuard, async (req, res) => {
       token: generateToken(user.id),
       user: publicUser(user),
       subscription,
+      tracking_pin: trackingPinPayload(user),
     })
   } catch (err) {
     console.error('Login error:', err)
@@ -151,10 +165,31 @@ router.get('/me', protect, async (req, res) => {
     return ok(res, 'Profile fetched', {
       user: publicUser(req.user),
       subscription,
+      tracking_pin: trackingPinPayload(req.user),
     })
   } catch (err) {
     console.error('Profile error:', err)
     return fail(res, 500, 'Unable to load profile')
+  }
+})
+
+router.put('/pin', protect, async (req, res) => {
+  try {
+    const salt = String(req.body.pin_salt || '').trim().toLowerCase()
+    const verifier = String(req.body.pin_verifier || '').trim().toLowerCase()
+    if (!/^[a-f0-9]{32}$/.test(salt) || !/^[a-f0-9]{64}$/.test(verifier)) {
+      return fail(res, 400, 'Invalid PIN payload')
+    }
+    await User.update(
+      { pin_salt: salt, pin_verifier: verifier },
+      { where: { id: req.user.id } }
+    )
+    return ok(res, 'Tracking PIN saved', {
+      tracking_pin: { salt, verifier },
+    })
+  } catch (err) {
+    console.error('PIN save error:', err)
+    return fail(res, 500, 'Unable to save tracking PIN')
   }
 })
 

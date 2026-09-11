@@ -10,6 +10,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.PATCH
 import retrofit2.http.Path
 import java.util.concurrent.TimeUnit
@@ -23,6 +24,12 @@ interface SlamApi {
 
     @GET("api/auth/me")
     suspend fun me(@Header("Authorization") bearer: String): Response<ApiEnvelope<MeData>>
+
+    @PUT("api/auth/pin")
+    suspend fun savePin(
+        @Header("Authorization") bearer: String,
+        @Body body: PinBody,
+    ): Response<ApiEnvelope<PinSaveResult>>
 
     @POST("api/location/log")
     suspend fun logLocation(

@@ -23,6 +23,25 @@ class PinStore(private val context: Context) {
         return prefs.contains(verifierKey(account)) || !prefs.getString(KEY_LEGACY_PIN, null).isNullOrBlank()
     }
 
+    fun export(): ExportedPin? {
+        val account = AccountIdentity.current(context)
+        val salt = prefs.getString(saltKey(account), null) ?: return null
+        val verifier = prefs.getString(verifierKey(account), null) ?: return null
+        return ExportedPin(salt = salt, verifier = verifier)
+    }
+
+    fun restore(saltHex: String, verifierHex: String): Boolean {
+        if (saltHex.length != SALT_BYTES * 2 || verifierHex.length != KEY_BITS / 4) return false
+        if (saltHex.hexToBytes() == null || verifierHex.hexToBytes() == null) return false
+        val account = AccountIdentity.current(context)
+        prefs.edit()
+            .putString(saltKey(account), saltHex.lowercase())
+            .putString(verifierKey(account), verifierHex.lowercase())
+            .remove(KEY_LEGACY_PIN)
+            .commit()
+        return true
+    }
+
     fun setPin(pin: String, minLength: Int = 4, maxLength: Int = 6): Boolean {
         if (pin.length !in minLength..maxLength || !pin.all { it.isDigit() }) return false
         val account = AccountIdentity.current(context)
@@ -89,3 +108,8 @@ class PinStore(private val context: Context) {
         const val KEY_BITS = 256
     }
 }
+
+data class ExportedPin(
+    val salt: String,
+    val verifier: String,
+)
