@@ -26,6 +26,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.slam.app.data.SessionStore
+import com.slam.app.data.SessionWarmup
 import com.slam.app.data.UiPreferences
 import com.slam.app.data.AccountLifecycleManager
 import com.slam.app.navigation.SlamRoutes
@@ -34,7 +35,6 @@ import com.slam.app.ui.components.LocalSlamToastHostState
 import com.slam.app.ui.components.SlamScaffold
 import com.slam.app.ui.components.SlamToastHostState
 import com.slam.app.ui.screens.ActivityScreen
-import com.slam.app.ui.screens.ConsentScreen
 import com.slam.app.ui.screens.DashboardScreen
 import com.slam.app.ui.screens.HomeScreen
 import com.slam.app.ui.screens.LoginScreen
@@ -62,13 +62,9 @@ class MainActivity : ComponentActivity() {
                 var start by remember { mutableStateOf(SlamRoutes.SPLASH) }
 
                 LaunchedEffect(Unit) {
-                    val consent = store.consentAccepted.first()
+                    uiPreferences.migrateAppearanceIfNeeded()
                     val token = store.token.first()
-                    start = when {
-                        !consent -> SlamRoutes.CONSENT
-                        token.isBlank() -> SlamRoutes.LOGIN
-                        else -> SlamRoutes.MAIN
-                    }
+                    start = if (token.isBlank()) SlamRoutes.LOGIN else SlamRoutes.MAIN
                     bootstrapped = true
                 }
 
@@ -86,16 +82,6 @@ class MainActivity : ComponentActivity() {
                                 SplashScreen(ready = bootstrapped) {
                                     nav.navigate(start) {
                                         popUpTo(SlamRoutes.SPLASH) { inclusive = true }
-                                    }
-                                }
-                            }
-                            composable(SlamRoutes.CONSENT) {
-                                ConsentScreen {
-                                    scope.launch {
-                                        store.setConsent(true)
-                                        nav.navigate(SlamRoutes.LOGIN) {
-                                            popUpTo(SlamRoutes.CONSENT) { inclusive = true }
-                                        }
                                     }
                                 }
                             }
@@ -145,6 +131,10 @@ private fun MainTabs(onSignedOut: () -> Unit) {
     val toastHost = remember { SlamToastHostState() }
     val entry by nav.currentBackStackEntryAsState()
     val currentRoute = entry?.destination?.route ?: SlamRoutes.HOME
+
+    LaunchedEffect(Unit) {
+        SessionWarmup.warm(context)
+    }
 
     fun switchTab(route: String) {
         nav.navigate(route) {

@@ -57,6 +57,7 @@ class AuthRepository(
             data.user.name,
             data.user.id,
         )
+        session.setConsent(true)
         session.cacheUsage(data.subscription)
     }
 
@@ -85,6 +86,7 @@ class AuthRepository(
             data.user.name,
             data.user.id,
         )
+        session.setConsent(true)
         session.cacheUsage(data.subscription)
     }
 }
