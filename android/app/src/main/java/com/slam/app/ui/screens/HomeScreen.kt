@@ -2,6 +2,7 @@ package com.slam.app.ui.screens
 
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,6 +29,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +47,7 @@ import com.slam.app.data.SessionStore
 import com.slam.app.data.local.SlamDatabase
 import com.slam.app.data.local.TrustedNumberEntity
 import com.slam.app.permissions.CorePrerequisites
+import com.slam.app.security.PinCloudSync
 import com.slam.app.security.PinStore
 import com.slam.app.service.SlamListenerService
 import com.slam.app.sms.EmergencyScheduler
@@ -88,6 +91,7 @@ fun HomeScreen(
     var newNumber by remember { mutableStateOf("") }
     var pendingDelete by remember { mutableStateOf<TrustedNumberEntity?>(null) }
     var formError by remember { mutableStateOf<String?>(null) }
+    var openSettingsForBackground by rememberSaveable { mutableStateOf(false) }
 
     val prerequisites = state.prerequisites ?: CorePrerequisites.status(context)
 
@@ -105,11 +109,29 @@ fun HomeScreen(
         return started
     }
 
+    fun openAppPermissionSettings() {
+        context.startActivity(
+            Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:${context.packageName}"),
+            ),
+        )
+    }
+
     val backgroundPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {
         viewModel.refreshDeviceState()
-        if (CorePrerequisites.status(context).listenerReady && pinStore.hasPin()) {
+        val status = CorePrerequisites.status(context)
+        if (!status.backgroundLocationGranted) {
+            openSettingsForBackground = true
+            scope.launch {
+                toast.show(
+                    "Background location still needed. Tap the button again to open app settings, then choose Allow all the time.",
+                    SlamToastTone.WARNING,
+                )
+            }
+        } else if (status.listenerReady && pinStore.hasPin()) {
             scope.launch { startListenerWhenReady() }
         }
     }
@@ -128,7 +150,12 @@ fun HomeScreen(
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshDeviceState()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshDeviceState()
+                if (CorePrerequisites.status(context).backgroundLocationGranted) {
+                    openSettingsForBackground = false
+                }
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -192,7 +219,7 @@ fun HomeScreen(
                     Spacer(Modifier.height(8.dp))
                     if (state.pinReady) {
                         Text(
-                            "PIN saved. Command: ${state.smsPrefix} <PIN> LOCATE",
+                            "PIN saved to this account. Command: ${state.smsPrefix} <PIN> LOCATE",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(12.dp))
@@ -202,8 +229,10 @@ fun HomeScreen(
                             onClick = { confirmListen = true },
                         )
                         Spacer(Modifier.height(8.dp))
-                        SlamTextButton(
+                        SlamPrimaryButton(
                             text = "Stop listening",
+                            style = SlamButtonStyle.DESTRUCTIVE,
+                            enabled = state.listening,
                             onClick = {
                                 SlamListenerService.stop(context)
                                 EmergencyPrefs(context).setOn(false)
@@ -212,10 +241,15 @@ fun HomeScreen(
                                 scope.launch { toast.show("Listening stopped") }
                             },
                         )
-                        SlamTextButton(text = "Change PIN", onClick = { changePinOpen = true })
+                        Spacer(Modifier.height(8.dp))
+                        SlamPrimaryButton(
+                            text = "Change PIN",
+                            style = SlamButtonStyle.SECONDARY,
+                            onClick = { changePinOpen = true },
+                        )
                     } else {
                         Text(
-                            "Set a ${state.pinMinLength}–${state.pinMaxLength} digit PIN used in SMS requests.",
+                            "Set a ${state.pinMinLength}–${state.pinMaxLength} digit PIN used in SMS requests. It syncs with your account.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(12.dp))
@@ -235,7 +269,10 @@ fun HomeScreen(
                                 if (pinStore.setPin(pinInput, state.pinMinLength, state.pinMaxLength)) {
                                     pinInput = ""
                                     viewModel.reloadLocal()
-                                    scope.launch { toast.show("PIN saved", SlamToastTone.SUCCESS) }
+                                    scope.launch {
+                                        PinCloudSync.pushCurrent(context)
+                                        toast.show("PIN saved", SlamToastTone.SUCCESS)
+                                    }
                                 } else {
                                     pinError = "PIN must be ${state.pinMinLength} to ${state.pinMaxLength} digits"
                                 }
@@ -252,7 +289,7 @@ fun HomeScreen(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         if (state.contacts.isEmpty()) {
-                            "Add a trusted number before listening can start. Plan allows ${state.maxContacts}."
+                            "Required for tracking. Only numbers you add here can request location — strangers cannot, even with the correct PIN. Add at least one before Start listening. Plan allows ${state.maxContacts}."
                         } else {
                             "Only these numbers can request location. ${state.contacts.size} of ${state.maxContacts} used."
                         },
@@ -367,6 +404,8 @@ fun HomeScreen(
                     SlamPrimaryButton(
                         text = when {
                             missingPermissions.any { it != "background location" } -> "Allow required permissions"
+                            !prerequisites.backgroundLocationGranted && openSettingsForBackground ->
+                                "Open app settings for location"
                             !prerequisites.backgroundLocationGranted -> "Allow background location"
                             !prerequisites.locationServicesEnabled -> "Open Location settings"
                             else -> "Permissions granted"
@@ -384,6 +423,8 @@ fun HomeScreen(
                                             Manifest.permission.POST_NOTIFICATIONS,
                                         ),
                                     )
+                                !prerequisites.backgroundLocationGranted && openSettingsForBackground ->
+                                    openAppPermissionSettings()
                                 !prerequisites.backgroundLocationGranted ->
                                     backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                                 !prerequisites.locationServicesEnabled ->
@@ -478,6 +519,7 @@ fun HomeScreen(
                                 changePinOpen = false
                                 scope.launch {
                                     db.failedPins().clear()
+                                    PinCloudSync.pushCurrent(context)
                                     viewModel.reloadLocal()
                                     toast.show("PIN updated", SlamToastTone.SUCCESS)
                                 }
@@ -582,8 +624,8 @@ fun HomeScreen(
     if (helpOpen) {
         val pages = listOf(
             "Send an SMS like this:\n\n${state.smsPrefix} 1234 LOCATE\n\nUse your real PIN. The tracked phone replies with a clear location message and map link.",
-            "Only numbers on your Trusted list can request a location. Add them on this Tracking tab before you start listening.",
-            "Allow SMS, location (including background), and notifications. Then tap Start listening. A confirmation appears before listening begins.",
+            "Only numbers on your Trusted list can request a location. Without trusted numbers, nobody can locate this phone — listening will not start until you add at least one.",
+            "Allow SMS, location (including Allow all the time), and notifications. Then tap Start listening. A confirmation appears before listening begins.",
             "Emergency sends timed updates to every trusted number and uses one locate per run, not one per recipient. Stop it anytime from this tab.",
         )
         ModalBottomSheet(
