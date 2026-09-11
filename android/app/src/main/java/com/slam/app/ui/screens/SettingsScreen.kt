@@ -4,10 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -31,7 +29,6 @@ import com.slam.app.ui.components.SlamModal
 import com.slam.app.ui.components.SlamPrimaryButton
 import com.slam.app.ui.components.SlamButtonStyle
 import com.slam.app.ui.components.SlamSwitchRow
-import com.slam.app.ui.components.SlamTextButton
 import com.slam.app.ui.components.SlamToastTone
 import com.slam.app.ui.components.LocalSlamToastHostState
 import kotlinx.coroutines.flow.first
@@ -55,6 +52,7 @@ fun SettingsScreen(
     val appearance by uiPreferences.appearance.collectAsStateWithLifecycle(AppearanceMode.DARK)
     val hapticsEnabled by uiPreferences.hapticsEnabled.collectAsStateWithLifecycle(true)
     val lastKnownEnabled by uiPreferences.lastKnownFallbackEnabled.collectAsStateWithLifecycle(true)
+    val darkThemeOn = appearance != AppearanceMode.LIGHT
 
     LaunchedEffect(Unit) {
         preferBattery = session.preferBattery.first()
@@ -79,24 +77,17 @@ fun SettingsScreen(
             Column(Modifier.padding(20.dp)) {
                 Text("Appearance", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "Current · ${appearance.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                SlamSwitchRow(
+                    title = "Dark theme",
+                    subtitle = "Off uses Light theme. On uses Dark theme.",
+                    checked = darkThemeOn,
+                    onCheckedChange = { enabled ->
+                        scope.launch {
+                            uiPreferences.setDarkTheme(enabled)
+                            toast.show(if (enabled) "Dark theme on" else "Light theme on", SlamToastTone.SUCCESS)
+                        }
+                    },
                 )
-                Row(Modifier.fillMaxWidth()) {
-                    AppearanceMode.entries.forEach { mode ->
-                        SlamTextButton(
-                            text = mode.name.lowercase().replaceFirstChar { it.uppercase() },
-                            onClick = {
-                                scope.launch {
-                                    uiPreferences.setAppearance(mode)
-                                    toast.show("Appearance updated", SlamToastTone.SUCCESS)
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
                 SlamSwitchRow(
                     title = "Haptic feedback",
                     subtitle = "Gentle vibration on taps and confirmations.",
@@ -118,7 +109,7 @@ fun SettingsScreen(
                 Spacer(Modifier.height(8.dp))
                 SlamSwitchRow(
                     title = "Prefer battery",
-                    subtitle = "Skip GPS first. Also used automatically below 15% battery.",
+                    subtitle = "Uses a lower-power location first (and automatically under ~15% battery) instead of always forcing GPS. Faster on battery, sometimes less precise.",
                     checked = preferBattery,
                     onCheckedChange = {
                         preferBattery = it
@@ -145,10 +136,22 @@ fun SettingsScreen(
                 Text("Device reliability", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Battery savers on Oppo and other phones can stop background tracking. Review these after updates.",
+                    "Some phones (especially Oppo and similar) can quietly stop apps in the background. That can end listening without you noticing.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(12.dp))
+                SlamPrimaryButton(
+                    text = "Open battery settings",
+                    onClick = {
+                        context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    },
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Tell Android not to put SLAM to sleep so SMS tracking can keep running.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(16.dp))
                 SlamPrimaryButton(
                     text = "Open SLAM app settings",
                     style = SlamButtonStyle.SECONDARY,
@@ -159,13 +162,6 @@ fun SettingsScreen(
                                 Uri.parse("package:${context.packageName}"),
                             ),
                         )
-                    },
-                )
-                Spacer(Modifier.height(8.dp))
-                SlamTextButton(
-                    text = "Review battery optimization",
-                    onClick = {
-                        context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                     },
                 )
             }
