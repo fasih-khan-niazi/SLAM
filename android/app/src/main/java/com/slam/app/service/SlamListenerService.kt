@@ -16,6 +16,7 @@ import com.slam.app.MainActivity
 import com.slam.app.R
 import com.slam.app.data.EmergencyPrefs
 import com.slam.app.data.ListenerPrefs
+import com.slam.app.location.QuietLocationWorker
 import com.slam.app.permissions.CorePrerequisites
 import com.slam.app.security.PinStore
 import com.slam.app.sms.EmergencyScheduler
@@ -34,22 +35,26 @@ class SlamListenerService : Service() {
     override fun onCreate() {
         super.onCreate()
         ListenerPrefs(this).setServiceActive(true)
+        QuietLocationWorker.schedule(this)
         ensureChannel()
         startInForeground()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            QuietLocationWorker.cancel(this)
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
         if (!CorePrerequisites.status(this).listenerReady || !PinStore(this).hasPin()) {
             ListenerPrefs(this).setListening(false)
+            QuietLocationWorker.cancel(this)
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
+        QuietLocationWorker.schedule(this)
         startInForeground()
         val from = intent?.getStringExtra(EXTRA_FROM)
         val body = intent?.getStringExtra(EXTRA_BODY)
@@ -132,6 +137,7 @@ class SlamListenerService : Service() {
         fun stop(context: Context) {
             ListenerPrefs(context).setListening(false)
             ListenerPrefs(context).setServiceActive(false)
+            QuietLocationWorker.cancel(context)
             EmergencyPrefs(context).setOn(false)
             EmergencyScheduler.stop(context)
             val intent = Intent(context, SlamListenerService::class.java).setAction(ACTION_STOP)
