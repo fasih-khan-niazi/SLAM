@@ -73,12 +73,22 @@ Expect `allowed: true`.
 
 ```powershell
 Invoke-RestMethod -Method Post "$base/api/location/log" -Headers $headers -ContentType "application/json" -Body (@{
+  event_id = [guid]::NewGuid().ToString()
   latitude = 33.6844
   longitude = 73.0479
   accuracy = "HIGH"
+  accuracy_meters = 8.5
+  source = "CURRENT"
+  provider = "fused"
+  captured_at = (Get-Date).ToUniversalTime().ToString("o")
   requested_by = "03009876543"
 } | ConvertTo-Json)
 ```
+
+`event_id` is required and makes retries idempotent: resending the same event
+returns it with `idempotent: true` and does not consume quota again. `source`
+must be `CURRENT` or `LAST_KNOWN`. Coordinates and numeric accuracy are
+validated before the event and quota increment are committed together.
 
 ## 8. History on Free (should be blocked)
 
