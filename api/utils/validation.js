@@ -35,8 +35,8 @@ function validateRegister({ name, email, password, phone }) {
   if (!normalizedPhone) {
     return 'Phone is required'
   }
-  if (!/^\+?\d{10,15}$/.test(normalizedPhone)) {
-    return 'Enter a valid phone number (10–15 digits)'
+  if (!/^\+?\d{11,12}$/.test(normalizedPhone)) {
+    return 'Enter a valid phone number (11–12 digits)'
   }
 
   return null

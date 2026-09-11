@@ -1,7 +1,7 @@
 package com.slam.app.feature.auth
 
 private val emailPattern = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
-private val phonePattern = Regex("^\\+?\\d{10,15}$")
+private val phonePattern = Regex("^\\+?\\d{11,12}$")
 
 data class AuthFieldErrors(
     val name: String? = null,
@@ -53,7 +53,7 @@ object AuthValidation {
             },
             phone = when {
                 normalizedPhone.isBlank() -> "Phone number is required."
-                !phonePattern.matches(normalizedPhone) -> "Use 10–15 digits, optionally starting with +."
+                !phonePattern.matches(normalizedPhone) -> "Phone must be 11 or 12 digits (optional +)."
                 else -> null
             },
             password = when {
