@@ -170,4 +170,19 @@ router.get('/location/history', protect, async (req, res) => {
   }
 })
 
+// Lightweight activity feed for all plans (restore after reinstall).
+router.get('/location/activity', protect, async (req, res) => {
+  try {
+    const logs = await LocationLog.findAll({
+      where: { user_id: req.user.id },
+      order: [['createdAt', 'DESC']],
+      limit: 40,
+    })
+    return ok(res, 'Activity fetched', { logs })
+  } catch (err) {
+    console.error('Location activity error:', err)
+    return fail(res, 500, 'Unable to load activity')
+  }
+})
+
 module.exports = router

@@ -169,10 +169,9 @@ fun HomeScreen(
         if (!prerequisites.notificationsGranted) add("notifications")
     }
     val permissionNote = when {
-        missingPermissions.isNotEmpty() -> "Still needed: ${missingPermissions.joinToString()}."
-        !prerequisites.locationServicesEnabled ->
-            "Permissions granted. Location is off — SLAM will send last known with a clear age warning when available."
-        else -> "All tracking permissions are granted and Location is on."
+        missingPermissions.isNotEmpty() -> "Needed: ${missingPermissions.joinToString()}"
+        !prerequisites.locationServicesEnabled -> "Turn on Location in system settings."
+        else -> "Ready"
     }
 
     Column(
@@ -184,7 +183,7 @@ fun HomeScreen(
         Text("Tracking", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(6.dp))
         Text(
-            "PIN, trusted numbers, listening, and emergency live here.",
+            "PIN · trusted numbers · listening",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
@@ -219,7 +218,7 @@ fun HomeScreen(
                     Spacer(Modifier.height(8.dp))
                     if (state.pinReady) {
                         Text(
-                            "PIN saved to this account. Command: ${state.smsPrefix} <PIN> LOCATE",
+                            "${state.smsPrefix} <PIN> LOCATE",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(12.dp))
@@ -249,7 +248,7 @@ fun HomeScreen(
                         )
                     } else {
                         Text(
-                            "Set a ${state.pinMinLength}–${state.pinMaxLength} digit PIN used in SMS requests. It syncs with your account.",
+                            "${state.pinMinLength}–${state.pinMaxLength} digits · saved to your account",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(12.dp))
@@ -289,9 +288,9 @@ fun HomeScreen(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         if (state.contacts.isEmpty()) {
-                            "Required for tracking. Only numbers you add here can request location — strangers cannot, even with the correct PIN. Add at least one before Start listening. Plan allows ${state.maxContacts}."
+                            "Add at least 1 trusted number to start. ${state.maxContacts} allowed."
                         } else {
-                            "Only these numbers can request location. ${state.contacts.size} of ${state.maxContacts} used."
+                            "${state.contacts.size}/${state.maxContacts} · only these can locate"
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

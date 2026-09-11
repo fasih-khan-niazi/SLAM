@@ -156,6 +156,8 @@ class SessionStore(private val context: Context) {
                 (subscription?.maxContacts ?: 1).coerceAtLeast(1)
             it[stringPreferencesKey(scoped("plan_name", accountId))] =
                 subscription?.planName ?: "Free"
+            // Keep period_start aligned so remainingForPeriod trusts the cached remaining.
+            it[longPreferencesKey(scoped("period_start", accountId))] = periodStart(it)
         }
     }
 

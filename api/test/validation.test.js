@@ -12,13 +12,34 @@ test('registration validates and normalizes international phone numbers', () => 
   assert.equal(validateRegister({
     name: 'Owner',
     email: 'owner@example.com',
-    password: 'password123',
+    password: 'SecurePass1!',
     phone: '+92 300-1234567',
   }), null)
   assert.equal(validateRegister({
     name: 'Owner',
     email: 'owner@example.com',
-    password: 'password123',
+    password: 'SecurePass1!',
     phone: '0300123456',
   }), 'Enter a valid phone number (11–12 digits)')
+})
+
+test('registration requires a strong password', () => {
+  assert.equal(
+    validateRegister({
+      name: 'Owner',
+      email: 'owner@example.com',
+      password: 'password123',
+      phone: '03001234567',
+    }),
+    'Password must include a letter, a number, and a special character'
+  )
+  assert.equal(
+    validateRegister({
+      name: 'Owner',
+      email: 'owner@example.com',
+      password: 'SecurePass1!',
+      phone: '03001234567',
+    }),
+    null
+  )
 })

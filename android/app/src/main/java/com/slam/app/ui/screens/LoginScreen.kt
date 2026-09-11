@@ -8,8 +8,6 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -67,15 +65,9 @@ fun LoginScreen(
 
     AuthScreenScaffold(
         title = "Welcome back",
-        subtitle = "Sign in to sync your plan. SMS tracking still works without internet.",
+        subtitle = "Sign in to continue",
         toastHostState = toastHost,
     ) {
-        Text(
-            "Email",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(Modifier.height(8.dp))
         SlamField(
             value = email,
             onValueChange = {
@@ -88,12 +80,6 @@ fun LoginScreen(
             supportingText = fieldErrors.email,
         )
         Spacer(Modifier.height(14.dp))
-        Text(
-            "Password",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(Modifier.height(8.dp))
         SlamField(
             value = password,
             onValueChange = {

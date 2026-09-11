@@ -20,7 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.slam.app.R
@@ -28,7 +28,7 @@ import com.slam.app.R
 @Composable
 fun AuthScreenScaffold(
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
     toastHostState: SlamToastHostState? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -36,15 +36,7 @@ fun AuthScreenScaffold(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        scheme.primary.copy(alpha = 0.10f),
-                        scheme.background,
-                        scheme.background,
-                    ),
-                ),
-            ),
+            .background(scheme.background),
     ) {
         Column(
             modifier = Modifier
@@ -54,38 +46,41 @@ fun AuthScreenScaffold(
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp),
         ) {
-            Spacer(Modifier.height(36.dp))
+            Spacer(Modifier.height(40.dp))
             Box(
                 modifier = Modifier
-                    .size(76.dp)
+                    .size(72.dp)
                     .clip(MaterialTheme.shapes.large)
-                    .background(scheme.primary.copy(alpha = 0.14f)),
+                    .background(scheme.primary),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
                     painter = painterResource(R.drawable.ic_slam_mark),
                     contentDescription = null,
-                    modifier = Modifier.size(42.dp),
+                    colorFilter = ColorFilter.tint(scheme.onPrimary),
+                    modifier = Modifier.size(38.dp),
                 )
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(20.dp))
             Text(
                 "SLAM",
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.titleMedium,
                 color = scheme.primary,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
                 title,
                 style = MaterialTheme.typography.headlineLarge,
                 color = scheme.onBackground,
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyLarge,
-                color = scheme.onSurfaceVariant,
-            )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
             Spacer(Modifier.height(28.dp))
             Box(
                 modifier = Modifier
