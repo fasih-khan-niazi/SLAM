@@ -54,6 +54,11 @@ data class LocationLogBody(
     val longitude: Double,
     val accuracy: String,
     @SerializedName("requested_by") val requestedBy: String,
+    @SerializedName("event_id") val eventId: String,
+    @SerializedName("accuracy_meters") val accuracyMeters: Float? = null,
+    val provider: String? = null,
+    val source: String,
+    @SerializedName("captured_at") val capturedAt: String,
 )
 
 data class PublicConfig(
@@ -74,4 +79,22 @@ data class LocationLogResult(
     @SerializedName("requests_used") val requestsUsed: Int?,
     @SerializedName("requests_remaining") val requestsRemaining: Int?,
     @SerializedName("limit_reached") val limitReached: Boolean?,
+)
+
+data class NotificationList(
+    val notifications: List<NotificationItem> = emptyList(),
+)
+
+data class NotificationItem(
+    val id: Int,
+    val title: String,
+    val body: String,
+    val kind: String,
+    val read: Boolean,
+    @SerializedName("created_at") val createdAt: String,
+)
+
+data class NotificationReadResult(
+    val id: Int,
+    val read: Boolean,
 )

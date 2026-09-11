@@ -2,32 +2,44 @@ package com.slam.app.location
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.os.BatteryManager
 import android.os.Looper
-import android.telephony.TelephonyManager
-import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.slam.app.data.AccountIdentity
+import com.slam.app.data.UiPreferences
+import com.slam.app.data.local.LastLocationEntity
+import com.slam.app.data.local.SlamDatabase
+import com.slam.app.permissions.CorePrerequisites
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
 import kotlin.coroutines.resume
 
 class LocationClient(private val context: Context) {
     private val fused = LocationServices.getFusedLocationProviderClient(context)
 
     suspend fun acquire(preferBattery: Boolean = false): SlamFix? {
-        if (!hasLocationPermission()) return cellFallback()
-
-        val batterySaver = preferBattery || batteryPercent() < 15
-        if (!batterySaver) {
-            requestFix(Priority.PRIORITY_HIGH_ACCURACY, 12_000L, "HIGH")?.let { return it }
+        val status = CorePrerequisites.status(context)
+        if (status.locationGranted && status.locationServicesEnabled) {
+            val batterySaver = preferBattery || batteryPercent() in 0..14
+            if (!batterySaver) {
+                requestFix(Priority.PRIORITY_HIGH_ACCURACY, 12_000L, "HIGH")?.let {
+                    persist(it)
+                    return it
+                }
+            }
+            requestFix(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 8_000L, "MEDIUM")?.let {
+                persist(it)
+                return it
+            }
         }
-        requestFix(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 8_000L, "MEDIUM")?.let { return it }
-        lastKnown()?.let { return it }
-        return cellFallback()
+        return if (UiPreferences(context).lastKnownFallbackEnabled.first()) {
+            persistedLastKnown()
+        } else {
+            null
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -43,7 +55,16 @@ class LocationClient(private val context: Context) {
                         fused.removeLocationUpdates(this)
                         val loc = result.lastLocation
                         if (loc != null && cont.isActive) {
-                            cont.resume(SlamFix(loc.latitude, loc.longitude, label))
+                            cont.resume(
+                                SlamFix(
+                                    latitude = loc.latitude,
+                                    longitude = loc.longitude,
+                                    accuracy = label,
+                                    accuracyMeters = if (loc.hasAccuracy()) loc.accuracy else null,
+                                    provider = loc.provider ?: "fused",
+                                    timestamp = loc.time,
+                                )
+                            )
                         } else if (cont.isActive) {
                             cont.resume(null)
                         }
@@ -60,41 +81,31 @@ class LocationClient(private val context: Context) {
         }
     }
 
-    @SuppressLint("MissingPermission")
-    private suspend fun lastKnown(): SlamFix? {
-        return suspendCancellableCoroutine { cont ->
-            fused.lastLocation
-                .addOnSuccessListener { loc ->
-                    if (loc != null) {
-                        cont.resume(SlamFix(loc.latitude, loc.longitude, "MEDIUM"))
-                    } else {
-                        val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-                        val gps = runCatching { lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) }.getOrNull()
-                        val net = runCatching { lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }.getOrNull()
-                        val best = listOfNotNull(gps, net).maxByOrNull { it.time }
-                        cont.resume(best?.let { SlamFix(it.latitude, it.longitude, "MEDIUM") })
-                    }
-                }
-                .addOnFailureListener { cont.resume(null) }
-        }
+    private suspend fun persist(fix: SlamFix) {
+        SlamDatabase.get(context).lastLocations().save(
+            LastLocationEntity(
+                accountId = AccountIdentity.current(context),
+                latitude = fix.latitude,
+                longitude = fix.longitude,
+                accuracyMeters = fix.accuracyMeters,
+                provider = fix.provider,
+                locationTimestamp = fix.timestamp,
+                savedAt = System.currentTimeMillis(),
+            )
+        )
     }
 
-    @SuppressLint("MissingPermission")
-    private fun cellFallback(): SlamFix? {
-        val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val net = runCatching { lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }.getOrNull()
-        if (net != null) return SlamFix(net.latitude, net.longitude, "LOW")
-
-        val telephony = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
-        val cells = runCatching { telephony?.allCellInfo }.getOrNull()
-        if (cells.isNullOrEmpty()) return null
-        return null
-    }
-
-    private fun hasLocationPermission(): Boolean {
-        val fine = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
-        val coarse = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION)
-        return fine == PackageManager.PERMISSION_GRANTED || coarse == PackageManager.PERMISSION_GRANTED
+    private suspend fun persistedLastKnown(): SlamFix? {
+        val saved = SlamDatabase.get(context).lastLocations().get(AccountIdentity.current(context)) ?: return null
+        return SlamFix(
+            latitude = saved.latitude,
+            longitude = saved.longitude,
+            accuracy = "LAST_KNOWN",
+            accuracyMeters = saved.accuracyMeters,
+            provider = saved.provider,
+            timestamp = saved.locationTimestamp,
+            isLastKnownFallback = true,
+        )
     }
 
     private fun batteryPercent(): Int {
