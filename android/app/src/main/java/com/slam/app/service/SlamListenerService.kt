@@ -16,6 +16,8 @@ import com.slam.app.MainActivity
 import com.slam.app.R
 import com.slam.app.data.EmergencyPrefs
 import com.slam.app.data.ListenerPrefs
+import com.slam.app.permissions.CorePrerequisites
+import com.slam.app.security.PinStore
 import com.slam.app.sms.EmergencyScheduler
 import com.slam.app.sms.LocateRequestHandler
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +33,7 @@ class SlamListenerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        ListenerPrefs(this).setServiceActive(true)
         ensureChannel()
         startInForeground()
     }
@@ -41,18 +44,26 @@ class SlamListenerService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        if (!CorePrerequisites.status(this).listenerReady || !PinStore(this).hasPin()) {
+            ListenerPrefs(this).setListening(false)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         startInForeground()
         val from = intent?.getStringExtra(EXTRA_FROM)
         val body = intent?.getStringExtra(EXTRA_BODY)
+        val messageId = intent?.getStringExtra(EXTRA_MESSAGE_ID)
         if (!from.isNullOrBlank() && !body.isNullOrBlank()) {
             scope.launch {
-                LocateRequestHandler(applicationContext).handle(from, body)
+                LocateRequestHandler(applicationContext).handle(from, body, messageId ?: "$from:${body.hashCode()}")
             }
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
+        ListenerPrefs(this).setServiceActive(false)
         scope.cancel()
         super.onDestroy()
     }
@@ -100,20 +111,27 @@ class SlamListenerService : Service() {
         const val NOTIFICATION_ID = 41
         const val EXTRA_FROM = "from"
         const val EXTRA_BODY = "body"
+        const val EXTRA_MESSAGE_ID = "message_id"
         const val ACTION_STOP = "com.slam.app.STOP_LISTENER"
 
         fun start(context: Context): Boolean {
+            if (!CorePrerequisites.status(context).listenerReady || !PinStore(context).hasPin()) {
+                ListenerPrefs(context).setListening(false)
+                return false
+            }
             return try {
-                ListenerPrefs(context).setListening(true)
                 context.startForegroundService(Intent(context, SlamListenerService::class.java))
+                ListenerPrefs(context).setListening(true)
                 true
             } catch (_: Exception) {
+                ListenerPrefs(context).setListening(false)
                 false
             }
         }
 
         fun stop(context: Context) {
             ListenerPrefs(context).setListening(false)
+            ListenerPrefs(context).setServiceActive(false)
             EmergencyPrefs(context).setOn(false)
             EmergencyScheduler.stop(context)
             val intent = Intent(context, SlamListenerService::class.java).setAction(ACTION_STOP)
@@ -124,11 +142,12 @@ class SlamListenerService : Service() {
             }
         }
 
-        fun locate(context: Context, from: String, body: String) {
+        fun locate(context: Context, from: String, body: String, messageId: String? = null) {
             if (!ListenerPrefs(context).isListening()) return
             val intent = Intent(context, SlamListenerService::class.java)
                 .putExtra(EXTRA_FROM, from)
                 .putExtra(EXTRA_BODY, body)
+                .putExtra(EXTRA_MESSAGE_ID, messageId)
             context.startForegroundService(intent)
         }
     }

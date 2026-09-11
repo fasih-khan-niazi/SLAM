@@ -3,8 +3,13 @@ package com.slam.app.security
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import com.slam.app.data.AccountIdentity
+import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 
-class PinStore(context: Context) {
+class PinStore(private val context: Context) {
     private val prefs = EncryptedSharedPreferences.create(
         "slam_secure",
         MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC),
@@ -13,17 +18,74 @@ class PinStore(context: Context) {
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
     )
 
-    fun hasPin(): Boolean = !prefs.getString(KEY_PIN, null).isNullOrBlank()
+    fun hasPin(): Boolean {
+        val account = AccountIdentity.current(context)
+        return prefs.contains(verifierKey(account)) || !prefs.getString(KEY_LEGACY_PIN, null).isNullOrBlank()
+    }
 
-    fun setPin(pin: String): Boolean {
-        if (pin.length !in 4..6 || !pin.all { it.isDigit() }) return false
-        prefs.edit().putString(KEY_PIN, pin).apply()
+    fun setPin(pin: String, minLength: Int = 4, maxLength: Int = 6): Boolean {
+        if (pin.length !in minLength..maxLength || !pin.all { it.isDigit() }) return false
+        val account = AccountIdentity.current(context)
+        val salt = ByteArray(SALT_BYTES).also(SecureRandom()::nextBytes)
+        val verifier = derive(pin, salt)
+        prefs.edit()
+            .putString(saltKey(account), salt.toHex())
+            .putString(verifierKey(account), verifier.toHex())
+            .remove(KEY_LEGACY_PIN)
+            .commit()
         return true
     }
 
-    fun verify(pin: String): Boolean = pin == prefs.getString(KEY_PIN, null)
+    fun verify(pin: String): Boolean {
+        val account = AccountIdentity.current(context)
+        val salt = prefs.getString(saltKey(account), null)?.hexToBytes()
+        val expected = prefs.getString(verifierKey(account), null)?.hexToBytes()
+        if (salt != null && expected != null) {
+            return MessageDigest.isEqual(expected, derive(pin, salt))
+        }
+
+        val legacy = prefs.getString(KEY_LEGACY_PIN, null) ?: return false
+        val matches = MessageDigest.isEqual(
+            legacy.toByteArray(Charsets.UTF_8),
+            pin.toByteArray(Charsets.UTF_8),
+        )
+        if (matches) setPin(pin)
+        return matches
+    }
+
+    fun clear() = clear(AccountIdentity.current(context))
+
+    fun clear(userId: String) {
+        prefs.edit()
+            .remove(saltKey(userId))
+            .remove(verifierKey(userId))
+            .apply {
+                if (userId == AccountIdentity.LEGACY_ACCOUNT_ID) remove(KEY_LEGACY_PIN)
+            }
+            .commit()
+    }
+
+    private fun derive(pin: String, salt: ByteArray): ByteArray {
+        val spec = PBEKeySpec(pin.toCharArray(), salt, ITERATIONS, KEY_BITS)
+        return try {
+            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+        } finally {
+            spec.clearPassword()
+        }
+    }
+
+    private fun saltKey(account: String) = "pin_salt:$account"
+    private fun verifierKey(account: String) = "pin_verifier:$account"
+    private fun ByteArray.toHex() = joinToString("") { "%02x".format(it) }
+    private fun String.hexToBytes(): ByteArray? = runCatching {
+        if (length % 2 != 0) return@runCatching null
+        ByteArray(length / 2) { index -> substring(index * 2, index * 2 + 2).toInt(16).toByte() }
+    }.getOrNull()
 
     private companion object {
-        const val KEY_PIN = "owner_pin"
+        const val KEY_LEGACY_PIN = "owner_pin"
+        const val SALT_BYTES = 16
+        const val ITERATIONS = 120_000
+        const val KEY_BITS = 256
     }
 }

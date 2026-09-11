@@ -12,6 +12,9 @@ interface LocationHistoryDao {
     @Query("SELECT * FROM location_history ORDER BY createdAt DESC LIMIT 10")
     suspend fun latest(): List<LocationHistoryEntity>
 
+    @Query("SELECT * FROM location_history WHERE accountId = :accountId ORDER BY createdAt DESC LIMIT 10")
+    suspend fun latest(accountId: String): List<LocationHistoryEntity>
+
     @Query(
         """
         DELETE FROM location_history WHERE id NOT IN (
@@ -20,4 +23,18 @@ interface LocationHistoryDao {
         """
     )
     suspend fun trim()
+
+    @Query(
+        """
+        DELETE FROM location_history
+        WHERE accountId = :accountId AND id NOT IN (
+            SELECT id FROM location_history
+            WHERE accountId = :accountId ORDER BY createdAt DESC LIMIT 10
+        )
+        """
+    )
+    suspend fun trim(accountId: String)
+
+    @Query("DELETE FROM location_history WHERE accountId = :accountId")
+    suspend fun clear(accountId: String)
 }
