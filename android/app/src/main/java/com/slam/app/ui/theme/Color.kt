@@ -20,7 +20,7 @@ object SlamDark {
 object SlamLight {
     val Background = Color(0xFFF7F7F5)
     val Surface = Color(0xFFFFFFFF)
-    val SurfaceRaised = Color(0xFFF0F0EC)
+    val SurfaceRaised = Color(0xFFE8E8E4)
     val Primary = Color(0xFF0F766E)
     val PrimaryMuted = Color(0xFFCCFBF1)
     val Accent = Color(0xFF0D9488)
@@ -29,5 +29,5 @@ object SlamLight {
     val Success = Color(0xFF16A34A)
     val Warning = Color(0xFFD97706)
     val Danger = Color(0xFFDC2626)
-    val Border = Color(0xFFE5E5E5)
+    val Border = Color(0xFFBDBDB8)
 }

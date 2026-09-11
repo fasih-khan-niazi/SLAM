@@ -60,9 +60,9 @@ fun SlamTheme(
 ) {
     val context = LocalContext.current
     val preference by UiPreferences(context).appearance.collectAsStateWithLifecycle(
-        initialValue = AppearanceMode.DARK,
+        initialValue = AppearanceMode.LIGHT,
     )
-    val useDark = darkTheme ?: (preference != AppearanceMode.LIGHT)
+    val useDark = darkTheme ?: (preference == AppearanceMode.DARK)
     val scheme = if (useDark) DarkScheme else LightScheme
     val view = LocalView.current
     SideEffect {

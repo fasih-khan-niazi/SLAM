@@ -19,8 +19,8 @@ enum class AppearanceMode {
 class UiPreferences(private val context: Context) {
     val appearance: Flow<AppearanceMode> = context.uiDataStore.data.map { prefs ->
         when (runCatching { AppearanceMode.valueOf(prefs[KEY_APPEARANCE].orEmpty()) }.getOrNull()) {
-            AppearanceMode.LIGHT -> AppearanceMode.LIGHT
-            AppearanceMode.DARK, AppearanceMode.SYSTEM, null -> AppearanceMode.DARK
+            AppearanceMode.DARK -> AppearanceMode.DARK
+            AppearanceMode.LIGHT, AppearanceMode.SYSTEM, null -> AppearanceMode.LIGHT
         }
     }
 
@@ -35,14 +35,17 @@ class UiPreferences(private val context: Context) {
     suspend fun migrateAppearanceIfNeeded() {
         context.uiDataStore.edit { prefs ->
             val raw = prefs[KEY_APPEARANCE].orEmpty()
-            if (raw == AppearanceMode.SYSTEM.name || raw.isBlank()) {
-                prefs[KEY_APPEARANCE] = AppearanceMode.DARK.name
+            if (raw.isBlank() || raw == AppearanceMode.SYSTEM.name) {
+                prefs[KEY_APPEARANCE] = AppearanceMode.LIGHT.name
             }
         }
     }
 
     suspend fun setAppearance(mode: AppearanceMode) {
-        val resolved = if (mode == AppearanceMode.SYSTEM) AppearanceMode.DARK else mode
+        val resolved = when (mode) {
+            AppearanceMode.DARK -> AppearanceMode.DARK
+            AppearanceMode.LIGHT, AppearanceMode.SYSTEM -> AppearanceMode.LIGHT
+        }
         context.uiDataStore.edit { it[KEY_APPEARANCE] = resolved.name }
     }
 

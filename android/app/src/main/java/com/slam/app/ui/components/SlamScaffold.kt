@@ -1,7 +1,10 @@
 package com.slam.app.ui.components
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
@@ -14,6 +17,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
@@ -43,12 +47,6 @@ fun SlamScaffold(
 ) {
     Scaffold(
         modifier = modifier,
-        snackbarHost = {
-            SlamToastHost(
-                hostState = toastHostState,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-        },
         bottomBar = {
             NavigationBar {
                 slamTabs.forEach { tab ->
@@ -60,8 +58,19 @@ fun SlamScaffold(
                 }
             }
         },
-        content = content,
-    )
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            content(padding)
+            SlamToastHost(
+                hostState = toastHostState,
+                fromTop = true,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 8.dp),
+            )
+        }
+    }
 }
 
 @Composable
