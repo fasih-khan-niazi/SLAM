@@ -18,17 +18,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.slam.app.data.local.LocationHistoryEntity
-import com.slam.app.data.local.SlamDatabase
 import com.slam.app.BuildConfig
 import com.slam.app.data.AccountIdentity
 import com.slam.app.data.SessionStore
+import com.slam.app.data.local.LocationHistoryEntity
+import com.slam.app.data.local.SlamDatabase
 import com.slam.app.data.remote.NotificationItem
+import com.slam.app.data.remote.RemoteLocationLog
 import com.slam.app.data.remote.SlamApiFactory
 import com.slam.app.ui.components.SlamBanner
 import com.slam.app.ui.components.SlamCard
 import com.slam.app.ui.components.SlamStatusTone
 import java.text.SimpleDateFormat
+import java.time.Instant
 import java.util.Date
 import java.util.Locale
 import androidx.lifecycle.AndroidViewModel
@@ -41,10 +43,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+data class ActivityEvent(
+    val key: String,
+    val title: String,
+    val latitude: Double,
+    val longitude: Double,
+    val accuracyMeters: Float?,
+    val timestampMs: Long,
+    val isLastKnown: Boolean,
+)
+
 data class ActivityUiState(
-    val locations: List<LocationHistoryEntity> = emptyList(),
+    val events: List<ActivityEvent> = emptyList(),
     val notifications: List<NotificationItem> = emptyList(),
-    val offline: Boolean = false,
+    val syncWarning: String? = null,
 )
 
 class ActivityViewModel(application: Application) : AndroidViewModel(application) {
@@ -58,24 +70,96 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
     fun refresh() {
         viewModelScope.launch {
             val accountId = AccountIdentity.current(getApplication())
-            val locations = SlamDatabase.get(getApplication()).locationHistory().latest(accountId)
+            val local = SlamDatabase.get(getApplication()).locationHistory().latest(accountId)
             val token = SessionStore(getApplication()).token.first()
             if (token.isBlank()) {
-                _state.value = ActivityUiState(locations = locations)
+                _state.value = ActivityUiState(events = local.map { it.toEvent() })
                 return@launch
             }
-            try {
-                val response = SlamApiFactory.create(BuildConfig.API_BASE_URL)
-                    .notifications("Bearer $token")
-                _state.value = ActivityUiState(
-                    locations = locations,
-                    notifications = response.body()?.data?.notifications.orEmpty(),
-                    offline = !response.isSuccessful,
-                )
-            } catch (_: Exception) {
-                _state.value = ActivityUiState(locations = locations, offline = true)
+
+            val api = SlamApiFactory.create(BuildConfig.API_BASE_URL)
+            var syncWarning: String? = null
+            var notifications = emptyList<NotificationItem>()
+            var remote = emptyList<RemoteLocationLog>()
+
+            runCatching {
+                val activity = api.locationActivity("Bearer $token")
+                when {
+                    activity.isSuccessful -> remote = activity.body()?.data?.logs.orEmpty()
+                    activity.code() == 401 -> syncWarning = "Session expired. Sign in again."
+                    else -> syncWarning = "Couldn’t sync activity from the server."
+                }
+            }.onFailure {
+                syncWarning = "Couldn’t sync activity from the server."
             }
+
+            runCatching {
+                val response = api.notifications("Bearer $token")
+                when {
+                    response.isSuccessful -> notifications = response.body()?.data?.notifications.orEmpty()
+                    response.code() == 401 -> syncWarning = "Session expired. Sign in again."
+                    syncWarning == null && !response.isSuccessful ->
+                        syncWarning = "Couldn’t sync notifications."
+                }
+            }.onFailure {
+                if (syncWarning == null) syncWarning = "Couldn’t sync notifications."
+            }
+
+            val merged = mergeEvents(local, remote)
+            _state.value = ActivityUiState(
+                events = merged,
+                notifications = notifications,
+                syncWarning = syncWarning,
+            )
         }
+    }
+
+    private fun mergeEvents(
+        local: List<LocationHistoryEntity>,
+        remote: List<RemoteLocationLog>,
+    ): List<ActivityEvent> {
+        val byKey = LinkedHashMap<String, ActivityEvent>()
+        remote.map { it.toEvent() }.forEach { byKey[it.key] = it }
+        local.map { it.toEvent() }.forEach { event ->
+            byKey.putIfAbsent(event.key, event)
+        }
+        return byKey.values.sortedByDescending { it.timestampMs }
+    }
+
+    private fun LocationHistoryEntity.toEvent() = ActivityEvent(
+        key = "local-$id",
+        title = when {
+            isLastKnownFallback -> "Last-known fallback"
+            requestedBy == "emergency" -> "Emergency update"
+            else -> "SMS location request"
+        },
+        latitude = latitude,
+        longitude = longitude,
+        accuracyMeters = accuracyMeters,
+        timestampMs = locationTimestamp ?: createdAt,
+        isLastKnown = isLastKnownFallback,
+    )
+
+    private fun RemoteLocationLog.toEvent(): ActivityEvent {
+        val ts = parseTime(capturedAt) ?: parseTime(createdAt) ?: 0L
+        return ActivityEvent(
+            key = "remote-$id",
+            title = when {
+                source.equals("LAST_KNOWN", ignoreCase = true) -> "Last-known fallback"
+                requestedBy.equals("emergency", ignoreCase = true) -> "Emergency update"
+                else -> "SMS location request"
+            },
+            latitude = latitude,
+            longitude = longitude,
+            accuracyMeters = accuracyMeters,
+            timestampMs = ts,
+            isLastKnown = source.equals("LAST_KNOWN", ignoreCase = true),
+        )
+    }
+
+    private fun parseTime(value: String?): Long? {
+        if (value.isNullOrBlank()) return null
+        return runCatching { Instant.parse(value).toEpochMilli() }.getOrNull()
     }
 }
 
@@ -93,15 +177,15 @@ fun ActivityScreen(viewModel: ActivityViewModel = viewModel()) {
         item {
             Text("Activity", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "Recent location events stored on this phone.",
+                "Location replies for this account.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (state.offline) {
+        state.syncWarning?.let { warning ->
             item {
                 SlamBanner(
-                    title = "Offline",
-                    message = "Couldn’t reach the server. Showing what is saved on this phone.",
+                    title = "Sync issue",
+                    message = warning,
                     tone = SlamStatusTone.WARNING,
                 )
             }
@@ -118,16 +202,16 @@ fun ActivityScreen(viewModel: ActivityViewModel = viewModel()) {
             }
         }
         item { Text("Location history", style = MaterialTheme.typography.titleLarge) }
-        if (state.locations.isEmpty()) {
+        if (state.events.isEmpty()) {
             item {
                 SlamBanner(
                     title = "No activity yet",
-                    message = "No location replies on this phone yet. Successful SMS or emergency locates will show up here.",
+                    message = "Successful SMS or emergency locates will show here.",
                     tone = SlamStatusTone.NEUTRAL,
                 )
             }
         } else {
-            items(state.locations, key = { "location-${it.id}" }) { event ->
+            items(state.events, key = { it.key }) { event ->
                 SlamCard(
                     modifier = Modifier.clickable {
                         val uri = Uri.parse(
@@ -137,16 +221,9 @@ fun ActivityScreen(viewModel: ActivityViewModel = viewModel()) {
                     },
                 ) {
                     Column(Modifier.padding(16.dp)) {
+                        Text(event.title, style = MaterialTheme.typography.titleMedium)
                         Text(
-                            when {
-                                event.isLastKnownFallback -> "Last-known fallback"
-                                event.requestedBy == "emergency" -> "Emergency update"
-                                else -> "SMS location request"
-                            },
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            "Captured ${formatter.format(Date(event.locationTimestamp ?: event.createdAt))}",
+                            "Captured ${formatter.format(Date(event.timestampMs))}",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(

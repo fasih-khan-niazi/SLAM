@@ -97,6 +97,22 @@ data class LocationLogResult(
     @SerializedName("limit_reached") val limitReached: Boolean?,
 )
 
+data class LocationActivityList(
+    val logs: List<RemoteLocationLog> = emptyList(),
+)
+
+data class RemoteLocationLog(
+    val id: Int,
+    val latitude: Double,
+    val longitude: Double,
+    val accuracy: String? = null,
+    @SerializedName("accuracy_meters") val accuracyMeters: Float? = null,
+    val source: String? = null,
+    @SerializedName("requested_by") val requestedBy: String? = null,
+    @SerializedName("captured_at") val capturedAt: String? = null,
+    @SerializedName("createdAt") val createdAt: String? = null,
+)
+
 data class NotificationList(
     val notifications: List<NotificationItem> = emptyList(),
 )

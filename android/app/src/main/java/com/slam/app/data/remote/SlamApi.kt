@@ -37,6 +37,11 @@ interface SlamApi {
         @Body body: LocationLogBody,
     ): Response<ApiEnvelope<LocationLogResult>>
 
+    @GET("api/location/activity")
+    suspend fun locationActivity(
+        @Header("Authorization") bearer: String,
+    ): Response<ApiEnvelope<LocationActivityList>>
+
     @GET("api/config")
     suspend fun config(): Response<ApiEnvelope<PublicConfig>>
 

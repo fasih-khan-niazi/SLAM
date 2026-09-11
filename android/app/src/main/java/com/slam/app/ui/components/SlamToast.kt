@@ -1,5 +1,13 @@
 package com.slam.app.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,17 +30,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -42,12 +44,13 @@ data class SlamToastMessage(
     val text: String,
     val tone: SlamToastTone = SlamToastTone.NEUTRAL,
     val durationMs: Long = 3_000L,
+    val id: Long = System.nanoTime(),
 )
 
 class SlamToastHostState {
     private val mutex = Mutex()
-    private val _messages = MutableSharedFlow<SlamToastMessage>(extraBufferCapacity = 8)
-    val messages = _messages.asSharedFlow()
+    private val _current = MutableStateFlow<SlamToastMessage?>(null)
+    val current: StateFlow<SlamToastMessage?> = _current.asStateFlow()
 
     suspend fun show(
         text: String,
@@ -55,7 +58,14 @@ class SlamToastHostState {
         durationMs: Long = 3_000L,
     ) {
         mutex.withLock {
-            _messages.emit(SlamToastMessage(text, tone, durationMs))
+            // Latest toast wins immediately — do not queue behind older ones.
+            _current.value = SlamToastMessage(text, tone, durationMs)
+        }
+    }
+
+    fun clearIfCurrent(id: Long) {
+        if (_current.value?.id == id) {
+            _current.value = null
         }
     }
 }
@@ -76,7 +86,11 @@ fun SlamToastHost(
     val haptics = LocalSlamHapticsEnabled.current
 
     LaunchedEffect(hostState) {
-        hostState.messages.collect { message ->
+        hostState.current.collectLatest { message ->
+            if (message == null) {
+                current = null
+                return@collectLatest
+            }
             current = message
             if (message.tone == SlamToastTone.DANGER || message.tone == SlamToastTone.WARNING) {
                 view.slamHaptic(haptics)
@@ -87,7 +101,7 @@ fun SlamToastHost(
                 animationSpec = tween(message.durationMs.toInt(), easing = LinearEasing),
             )
             delay(40)
-            current = null
+            hostState.clearIfCurrent(message.id)
         }
     }
 
@@ -112,7 +126,7 @@ fun SlamToastHost(
                     .padding(horizontal = 16.dp, vertical = 12.dp)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
                 Text(
                     text = message.text,

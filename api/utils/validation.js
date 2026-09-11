@@ -30,6 +30,12 @@ function validateRegister({ name, email, password, phone }) {
   if (String(password).length < 8) {
     return 'Password must be at least 8 characters'
   }
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    return 'Password must include a letter, a number, and a special character'
+  }
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password)) {
+    return 'Password must include upper and lower case letters'
+  }
 
   const normalizedPhone = normalizePhone(phone)
   if (!normalizedPhone) {
