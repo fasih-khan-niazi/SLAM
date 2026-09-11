@@ -156,7 +156,6 @@ fun DashboardScreen(
     viewModel: DashboardViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { viewModel.refresh() }
     LaunchedEffect(state.sessionExpired) {
         if (state.sessionExpired) onSessionExpired()
     }
