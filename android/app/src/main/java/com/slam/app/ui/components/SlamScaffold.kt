@@ -1,6 +1,7 @@
 package com.slam.app.ui.components
 
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
@@ -9,16 +10,14 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import com.slam.app.navigation.SlamRoutes
 
 data class SlamTab(
@@ -34,21 +33,22 @@ val slamTabs = listOf(
     SlamTab(SlamRoutes.SETTINGS, "Settings", Icons.Outlined.Settings),
 )
 
-val LocalSlamSnackbarHostState = staticCompositionLocalOf<SnackbarHostState> {
-    error("SlamScaffold must provide a SnackbarHostState")
-}
-
 @Composable
 fun SlamScaffold(
     currentRoute: String,
     onTabSelected: (String) -> Unit,
-    snackbarHostState: SnackbarHostState,
+    toastHostState: SlamToastHostState,
     modifier: Modifier = Modifier,
     content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
 ) {
     Scaffold(
         modifier = modifier,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SlamToastHost(
+                hostState = toastHostState,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        },
         bottomBar = {
             NavigationBar {
                 slamTabs.forEach { tab ->
@@ -60,11 +60,7 @@ fun SlamScaffold(
                 }
             }
         },
-        content = { padding ->
-            CompositionLocalProvider(LocalSlamSnackbarHostState provides snackbarHostState) {
-                content(padding)
-            }
-        },
+        content = content,
     )
 }
 
@@ -89,5 +85,10 @@ private fun RowScope.SlamNavigationItem(
             )
         },
         label = { Text(tab.label) },
+        colors = NavigationBarItemDefaults.colors(
+            selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+            selectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+            indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+        ),
     )
 }
