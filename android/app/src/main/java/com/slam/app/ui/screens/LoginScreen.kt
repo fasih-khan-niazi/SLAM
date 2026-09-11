@@ -21,40 +21,45 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.slam.app.BuildConfig
 import com.slam.app.R
-import com.slam.app.data.SessionStore
-import com.slam.app.data.remote.LoginBody
-import com.slam.app.data.remote.SlamApiFactory
+import com.slam.app.feature.auth.AuthFieldErrors
+import com.slam.app.feature.auth.AuthValidation
+import com.slam.app.feature.auth.AuthViewModel
 import com.slam.app.ui.components.SlamField
 import com.slam.app.ui.components.SlamModal
 import com.slam.app.ui.components.SlamPrimaryButton
 import com.slam.app.ui.components.SlamTextButton
-import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.LaunchedEffect
 
 @Composable
 fun LoginScreen(
     onLoggedIn: () -> Unit,
     onCreateAccount: () -> Unit,
+    viewModel: AuthViewModel = viewModel(),
 ) {
-    val context = LocalContext.current
-    val store = remember { SessionStore(context) }
-    val scope = rememberCoroutineScope()
+    val authState by viewModel.state.collectAsStateWithLifecycle()
 
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var showPassword by remember { mutableStateOf(false) }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var email by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var showPassword by rememberSaveable { mutableStateOf(false) }
+    var fieldErrors by remember { mutableStateOf(AuthFieldErrors()) }
+
+    LaunchedEffect(authState.authenticated) {
+        if (authState.authenticated) {
+            viewModel.consumeAuthentication()
+            onLoggedIn()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -79,22 +84,32 @@ fun LoginScreen(
         Spacer(Modifier.height(28.dp))
         SlamField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = {
+                email = it
+                fieldErrors = fieldErrors.copy(email = null)
+            },
             label = "Email",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            isError = fieldErrors.email != null,
+            supportingText = fieldErrors.email,
         )
         Spacer(Modifier.height(12.dp))
         SlamField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = {
+                password = it
+                fieldErrors = fieldErrors.copy(password = null)
+            },
             label = "Password",
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            isError = fieldErrors.password != null,
+            supportingText = fieldErrors.password,
             trailingIcon = {
                 IconButton(onClick = { showPassword = !showPassword }) {
                     Icon(
                         imageVector = if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                        contentDescription = null,
+                        contentDescription = if (showPassword) "Hide password" else "Show password",
                     )
                 }
             },
@@ -102,28 +117,12 @@ fun LoginScreen(
         Spacer(Modifier.height(24.dp))
         SlamPrimaryButton(
             text = "Sign in",
-            loading = loading,
+            loading = authState.loading,
             onClick = {
-                loading = true
-                scope.launch {
-                    try {
-                        store.setApiBaseUrl(BuildConfig.API_BASE_URL)
-                        val api = SlamApiFactory.create(BuildConfig.API_BASE_URL)
-                        val response = api.login(LoginBody(email.trim(), password))
-                        val body = response.body()
-                        if (response.isSuccessful && body?.success == true && body.data != null) {
-                            store.setSession(body.data.token, body.data.user.name)
-                            store.cacheUsage(body.data.subscription)
-                            onLoggedIn()
-                        } else {
-                            error = body?.message ?: "Could not sign in"
-                        }
-                    } catch (e: Exception) {
-                        error = "Cannot reach the server. Check your internet connection."
-                    } finally {
-                        loading = false
-                    }
-                }
+                val validation = AuthValidation.login(email, password)
+                fieldErrors = validation
+                if (validation.hasErrors) return@SlamPrimaryButton
+                viewModel.login(email, password)
             },
         )
         SlamTextButton(
@@ -132,14 +131,14 @@ fun LoginScreen(
         )
     }
 
-    error?.let { message ->
+    authState.error?.let { message ->
         SlamModal(
             title = "Sign in failed",
             message = message,
             confirmLabel = "OK",
             cancelLabel = "",
-            onConfirm = { error = null },
-            onDismiss = { error = null },
+            onConfirm = viewModel::clearError,
+            onDismiss = viewModel::clearError,
         )
     }
 }

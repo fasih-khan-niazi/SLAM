@@ -17,12 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.slam.app.R
-import kotlinx.coroutines.delay
 
 @Composable
 fun SplashScreen(ready: Boolean, onFinished: () -> Unit) {
     LaunchedEffect(ready) {
-        delay(1200)
         if (ready) onFinished()
     }
 
