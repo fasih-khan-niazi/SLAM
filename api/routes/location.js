@@ -1,8 +1,16 @@
 const express = require('express')
+const { Op } = require('sequelize')
 const { protect } = require('../middleware/auth')
-const { LocationLog } = require('../models')
+const {
+  sequelize,
+  User,
+  Subscription,
+  SubscriptionPlan,
+  LocationLog,
+} = require('../models')
 const { ok, fail } = require('../utils/http')
-const { getActivePlanInfo } = require('../utils/subscription')
+const { addDays, getActivePlanInfo, getFreePlan } = require('../utils/subscription')
+const { validateLocationEvent, usagePayload } = require('../utils/locationEvent')
 
 const router = express.Router()
 
@@ -21,7 +29,7 @@ router.get('/location/can-request', protect, async (req, res) => {
 
     const allowed = info.requests_used < info.monthly_limit
 
-    return ok(res, allowed ? 'Request allowed' : 'Monthly limit reached', {
+    return ok(res, allowed ? 'Request allowed' : 'Plan-period limit reached', {
       allowed,
       requests_used: info.requests_used,
       requests_remaining: Math.max(0, info.monthly_limit - info.requests_used),
@@ -34,58 +42,109 @@ router.get('/location/can-request', protect, async (req, res) => {
 })
 
 router.post('/location/log', protect, async (req, res) => {
+  const validated = validateLocationEvent(req.body)
+  if (validated.error) {
+    return fail(res, 400, validated.error)
+  }
+
   try {
-    const { latitude, longitude, accuracy, requested_by } = req.body
     const user_id = req.user.id
+    const result = await sequelize.transaction(async (transaction) => {
+      // The user lock also serializes legacy accounts without a subscription.
+      // Active subscriptions receive their own required quota-row lock.
+      await User.findByPk(user_id, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      })
 
-    if (latitude === undefined || longitude === undefined || !requested_by) {
-      return fail(res, 400, 'latitude, longitude and requested_by are required')
-    }
+      const subscription = await Subscription.findOne({
+        where: { user_id, status: 'active' },
+        order: [['createdAt', 'DESC']],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      })
+      const plan = subscription
+        ? await SubscriptionPlan.findByPk(subscription.plan_id, { transaction })
+        : await getFreePlan(transaction)
+      const monthlyLimit = plan ? plan.monthly_limit : 5
+      const legacyPeriodStart = new Date()
+      legacyPeriodStart.setDate(1)
+      legacyPeriodStart.setHours(0, 0, 0, 0)
+      const legacyUsageWhere = {
+        user_id,
+        createdAt: { [Op.gte]: legacyPeriodStart },
+      }
 
-    const lat = Number(latitude)
-    const lng = Number(longitude)
-    if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      return fail(res, 400, 'latitude and longitude must be numbers')
-    }
+      if (subscription && monthlyLimit !== null && subscription.end_date) {
+        const end = new Date(subscription.end_date)
+        if (!Number.isNaN(end.getTime()) && Date.now() > end.getTime()) {
+          const today = new Date()
+          await subscription.update({
+            requests_used: 0,
+            start_date: today,
+            end_date: addDays(today, 30),
+          }, { transaction })
+        }
+      }
 
-    const info = await getActivePlanInfo(user_id)
-    if (info.monthly_limit !== null && info.requests_used >= info.monthly_limit) {
-      return fail(res, 403, 'Monthly limit reached. Upgrade to continue.')
-    }
+      const existing = await LocationLog.findOne({
+        where: { event_id: validated.value.event_id },
+        transaction,
+      })
+      if (existing) {
+        if (existing.user_id !== user_id) {
+          const conflict = new Error('event_id is already used by another account')
+          conflict.status = 409
+          throw conflict
+        }
 
-    const validAccuracy = ['HIGH', 'MEDIUM', 'LOW']
-    const finalAccuracy = validAccuracy.includes(accuracy) ? accuracy : 'LOW'
+        const requestsUsed = subscription
+          ? subscription.requests_used
+          : await LocationLog.count({ where: legacyUsageWhere, transaction })
+        return usagePayload(existing, requestsUsed, monthlyLimit, true)
+      }
 
-    await LocationLog.create({
-      user_id,
-      latitude: lat,
-      longitude: lng,
-      accuracy: finalAccuracy,
-      requested_by: String(requested_by).trim(),
+      const requestsUsed = subscription
+        ? subscription.requests_used
+        : await LocationLog.count({ where: legacyUsageWhere, transaction })
+      if (monthlyLimit !== null && requestsUsed >= monthlyLimit) {
+        const limit = new Error('Plan-period limit reached. Upgrade to continue.')
+        limit.status = 403
+        throw limit
+      }
+
+      const event = await LocationLog.create({
+        ...validated.value,
+        user_id,
+        captured_at: validated.value.captured_at || new Date(),
+      }, { transaction })
+      const nextRequestsUsed = requestsUsed + 1
+
+      if (subscription) {
+        await subscription.update(
+          { requests_used: nextRequestsUsed },
+          { transaction }
+        )
+      }
+
+      return usagePayload(event, nextRequestsUsed, monthlyLimit, false)
     })
-
-    let requests_used
-    if (info.subscription) {
-      await info.subscription.increment('requests_used')
-      requests_used = info.requests_used + 1
-    } else {
-      const refreshed = await getActivePlanInfo(user_id)
-      requests_used = refreshed.requests_used
-    }
-
-    const monthly_limit = info.monthly_limit
-    const requests_remaining = monthly_limit === null
-      ? null
-      : Math.max(0, monthly_limit - requests_used)
-    const limit_reached = monthly_limit !== null && requests_used >= monthly_limit
 
     return ok(
       res,
-      limit_reached ? 'Location logged. Monthly limit reached.' : 'Location logged',
-      { requests_used, requests_remaining, limit_reached }
+      result.idempotent
+        ? 'Location event already logged'
+        : result.limit_reached
+          ? 'Location logged. Plan-period limit reached.'
+          : 'Location logged',
+      result
     )
   } catch (err) {
     console.error('Location log error:', err)
+    if (err.status) return fail(res, err.status, err.message)
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      return fail(res, 409, 'event_id has already been used')
+    }
     return fail(res, 500, 'Unable to log location')
   }
 })

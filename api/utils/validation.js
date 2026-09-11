@@ -43,8 +43,12 @@ function validateRegister({ name, email, password, phone }) {
 }
 
 function validateLogin({ email, password }) {
-  if (!normalizeEmail(email) || !password) {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail || !password) {
     return 'Email and password are required'
+  }
+  if (!EMAIL_RE.test(normalizedEmail)) {
+    return 'Enter a valid email address'
   }
   return null
 }
