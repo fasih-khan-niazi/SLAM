@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -22,8 +23,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -38,20 +39,18 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.slam.app.BuildConfig
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.slam.app.data.EmergencyPrefs
-import com.slam.app.data.ListenerPrefs
 import com.slam.app.data.SessionStore
 import com.slam.app.data.local.SlamDatabase
 import com.slam.app.data.local.TrustedNumberEntity
-import com.slam.app.data.remote.SlamApiFactory
-import com.slam.app.data.remote.SubscriptionInfo
 import com.slam.app.permissions.CorePrerequisites
 import com.slam.app.security.PinStore
 import com.slam.app.service.SlamListenerService
 import com.slam.app.sms.EmergencyScheduler
 import com.slam.app.sms.PhoneNumbers
 import com.slam.app.ui.components.LocalSlamToastHostState
+import com.slam.app.ui.components.SlamButtonStyle
 import com.slam.app.ui.components.SlamCard
 import com.slam.app.ui.components.SlamField
 import com.slam.app.ui.components.SlamModal
@@ -59,14 +58,13 @@ import com.slam.app.ui.components.SlamPrimaryButton
 import com.slam.app.ui.components.SlamSkeleton
 import com.slam.app.ui.components.SlamTextButton
 import com.slam.app.ui.components.SlamToastTone
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    viewModel: TrackingViewModel = viewModel(),
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val store = remember { SessionStore(context) }
@@ -74,52 +72,24 @@ fun HomeScreen() {
     val toast = LocalSlamToastHostState.current
     val pinStore = remember { PinStore(context) }
     val db = remember { SlamDatabase.get(context) }
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
-    var loading by remember { mutableStateOf(true) }
-    var subscription by remember { mutableStateOf<SubscriptionInfo?>(null) }
     var helpOpen by remember { mutableStateOf(false) }
+    var helpPage by remember { mutableIntStateOf(0) }
     var contactSheetOpen by remember { mutableStateOf(false) }
-    var pinReady by remember { mutableStateOf(pinStore.hasPin()) }
+    var confirmListen by remember { mutableStateOf(false) }
     var pinInput by remember { mutableStateOf("") }
     var changePinOpen by remember { mutableStateOf(false) }
     var currentPin by remember { mutableStateOf("") }
     var newPin by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
-    var listening by remember {
-        mutableStateOf(ListenerPrefs(context).isListening() && ListenerPrefs(context).isServiceActive())
-    }
-    var emergencyOn by remember { mutableStateOf(EmergencyPrefs(context).isOn()) }
-    var emergencyAllowed by remember { mutableStateOf(true) }
-    var emergencyHours by remember { mutableStateOf(1) }
-    var pinMinLength by remember { mutableStateOf(4) }
-    var pinMaxLength by remember { mutableStateOf(6) }
-    var smsPrefix by remember { mutableStateOf("SLAM") }
     var emergencyNote by remember { mutableStateOf<String?>(null) }
-    var emergencyLastResult by remember { mutableStateOf("") }
-    var emergencyNextRun by remember { mutableStateOf(0L) }
-    var contacts by remember { mutableStateOf(listOf<TrustedNumberEntity>()) }
-    var maxContacts by remember { mutableStateOf(1) }
     var newLabel by remember { mutableStateOf("") }
     var newNumber by remember { mutableStateOf("") }
     var pendingDelete by remember { mutableStateOf<TrustedNumberEntity?>(null) }
     var formError by remember { mutableStateOf<String?>(null) }
-    val liveRemainingValue by store.cachedRemaining.collectAsStateWithLifecycle(initialValue = 5)
-    val cachedRemaining = liveRemainingValue.takeUnless { it == Int.MAX_VALUE }
-    val cachedUnlimited by store.cachedUnlimited.collectAsStateWithLifecycle(initialValue = false)
-    var prerequisiteStatus by remember { mutableStateOf(CorePrerequisites.status(context)) }
 
-    fun refreshDeviceState() {
-        prerequisiteStatus = CorePrerequisites.status(context)
-        listening = ListenerPrefs(context).isListening() && ListenerPrefs(context).isServiceActive()
-        emergencyOn = EmergencyPrefs(context).isOn()
-        emergencyLastResult = EmergencyPrefs(context).lastResult()
-        emergencyNextRun = EmergencyPrefs(context).nextRun()
-    }
-
-    suspend fun reloadContacts() {
-        contacts = db.trustedNumbers().all()
-        maxContacts = store.cachedMaxContacts()
-    }
+    val prerequisites = state.prerequisites ?: CorePrerequisites.status(context)
 
     suspend fun startListenerWhenReady(): Boolean {
         if (db.trustedNumbers().count() < 1) {
@@ -127,7 +97,7 @@ fun HomeScreen() {
             return false
         }
         val started = SlamListenerService.start(context)
-        listening = started
+        viewModel.refreshDeviceState()
         toast.show(
             if (started) "Listening for SLAM commands." else "Allow the required permissions first.",
             if (started) SlamToastTone.SUCCESS else SlamToastTone.WARNING,
@@ -138,86 +108,42 @@ fun HomeScreen() {
     val backgroundPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {
-        refreshDeviceState()
+        viewModel.refreshDeviceState()
         if (CorePrerequisites.status(context).listenerReady && pinStore.hasPin()) {
-            scope.launch {
-                startListenerWhenReady()
-                refreshDeviceState()
-            }
+            scope.launch { startListenerWhenReady() }
         }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) {
-        refreshDeviceState()
+        viewModel.refreshDeviceState()
         val status = CorePrerequisites.status(context)
         if (status.locationGranted && !status.backgroundLocationGranted) {
             backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         } else if (status.listenerReady && pinStore.hasPin()) {
-            scope.launch {
-                startListenerWhenReady()
-                refreshDeviceState()
-            }
+            scope.launch { startListenerWhenReady() }
         }
     }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) refreshDeviceState()
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshDeviceState()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(Unit) {
-        val token = store.token.first()
-        try {
-            val api = SlamApiFactory.create(BuildConfig.API_BASE_URL)
-            coroutineScope {
-                val config = async { runCatching { api.config().body()?.data }.getOrNull() }.await()
-                store.cacheProductConfig(
-                    config?.pinAttemptCap,
-                    config?.pinWindowMinutes,
-                    config?.emergencyEnabled,
-                    config?.emergencyIntervalHours,
-                    config?.smsPrefix,
-                    config?.pinMinLength,
-                    config?.pinMaxLength,
-                )
-                if (token.isNotBlank()) {
-                    val response = runCatching { api.me("Bearer $token") }.getOrNull()
-                    val data = response?.body()?.data
-                    if (response?.isSuccessful == true && data != null) {
-                        subscription = data.subscription
-                        store.cacheUsage(data.subscription)
-                    }
-                }
-            }
-        } catch (_: Exception) {
-            // Offline tracking still works from cache.
-        } finally {
-            emergencyAllowed = store.cachedEmergencyEnabled()
-            emergencyHours = store.cachedEmergencyHours()
-            pinMinLength = store.cachedPinMinLength().coerceIn(4, 6)
-            pinMaxLength = store.cachedPinMaxLength().coerceIn(pinMinLength, 6)
-            smsPrefix = store.cachedSmsPrefix()
-            reloadContacts()
-            refreshDeviceState()
-            loading = false
-        }
-    }
-
     val missingPermissions = buildList {
-        if (!prerequisiteStatus.receiveSmsGranted) add("receive SMS")
-        if (!prerequisiteStatus.sendSmsGranted) add("send SMS")
-        if (!prerequisiteStatus.locationGranted) add("location")
-        if (!prerequisiteStatus.backgroundLocationGranted) add("background location")
-        if (!prerequisiteStatus.notificationsGranted) add("notifications")
+        if (!prerequisites.receiveSmsGranted) add("receive SMS")
+        if (!prerequisites.sendSmsGranted) add("send SMS")
+        if (!prerequisites.locationGranted) add("location")
+        if (!prerequisites.backgroundLocationGranted) add("background location")
+        if (!prerequisites.notificationsGranted) add("notifications")
     }
     val permissionNote = when {
         missingPermissions.isNotEmpty() -> "Still needed: ${missingPermissions.joinToString()}."
-        !prerequisiteStatus.locationServicesEnabled ->
+        !prerequisites.locationServicesEnabled ->
             "Permissions granted. Location is off — SLAM will send last known with a clear age warning when available."
         else -> "All tracking permissions are granted and Location is on."
     }
@@ -236,26 +162,26 @@ fun HomeScreen() {
         )
         Spacer(Modifier.height(24.dp))
 
-        if (loading) {
+        if (!state.bootstrapped) {
             SlamSkeleton(height = 96)
             Spacer(Modifier.height(12.dp))
             SlamSkeleton(height = 140)
-            Spacer(Modifier.height(12.dp))
-            SlamSkeleton(height = 120)
         } else {
             SlamCard {
                 Column(Modifier.padding(20.dp)) {
                     Text("Current plan", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
-                    Text(subscription?.planName ?: "Free", style = MaterialTheme.typography.titleLarge)
+                    Text(state.planName, style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(8.dp))
-                    val limit = subscription?.monthlyLimit
-                    val unlimited = cachedUnlimited || (limit == null && subscription?.planName == "Premium")
                     Text(
-                        if (unlimited) "Unlimited location requests this period"
-                        else "${cachedRemaining ?: "—"} of ${limit ?: 5} requests remaining",
+                        if (state.unlimited) "Unlimited location requests this period"
+                        else "${state.remaining ?: "—"} of ${state.limit ?: 5} requests remaining",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (state.syncing) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("Updating in the background…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
 
@@ -264,16 +190,16 @@ fun HomeScreen() {
                 Column(Modifier.padding(20.dp)) {
                     Text("Tracking PIN", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(8.dp))
-                    if (pinReady) {
+                    if (state.pinReady) {
                         Text(
-                            "PIN saved. Command: $smsPrefix <PIN> LOCATE",
+                            "PIN saved. Command: ${state.smsPrefix} <PIN> LOCATE",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(12.dp))
                         SlamPrimaryButton(
-                            text = if (listening) "Listening" else "Start listening",
-                            enabled = !listening,
-                            onClick = { scope.launch { startListenerWhenReady() } },
+                            text = if (state.listening) "Listening" else "Start listening",
+                            enabled = !state.listening,
+                            onClick = { confirmListen = true },
                         )
                         Spacer(Modifier.height(8.dp))
                         SlamTextButton(
@@ -282,22 +208,21 @@ fun HomeScreen() {
                                 SlamListenerService.stop(context)
                                 EmergencyPrefs(context).setOn(false)
                                 EmergencyScheduler.stop(context)
-                                listening = false
-                                emergencyOn = false
+                                viewModel.refreshDeviceState()
                                 scope.launch { toast.show("Listening stopped") }
                             },
                         )
                         SlamTextButton(text = "Change PIN", onClick = { changePinOpen = true })
                     } else {
                         Text(
-                            "Set a $pinMinLength–$pinMaxLength digit PIN used in SMS requests.",
+                            "Set a ${state.pinMinLength}–${state.pinMaxLength} digit PIN used in SMS requests.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(12.dp))
                         SlamField(
                             value = pinInput,
                             onValueChange = { value ->
-                                if (value.length <= pinMaxLength && value.all { it.isDigit() }) pinInput = value
+                                if (value.length <= state.pinMaxLength && value.all { it.isDigit() }) pinInput = value
                             },
                             label = "PIN",
                             visualTransformation = PasswordVisualTransformation(),
@@ -307,12 +232,12 @@ fun HomeScreen() {
                         SlamPrimaryButton(
                             text = "Save PIN",
                             onClick = {
-                                if (pinStore.setPin(pinInput, pinMinLength, pinMaxLength)) {
-                                    pinReady = true
+                                if (pinStore.setPin(pinInput, state.pinMinLength, state.pinMaxLength)) {
                                     pinInput = ""
+                                    viewModel.reloadLocal()
                                     scope.launch { toast.show("PIN saved", SlamToastTone.SUCCESS) }
                                 } else {
-                                    pinError = "PIN must be $pinMinLength to $pinMaxLength digits"
+                                    pinError = "PIN must be ${state.pinMinLength} to ${state.pinMaxLength} digits"
                                 }
                             },
                         )
@@ -326,15 +251,15 @@ fun HomeScreen() {
                     Text("Trusted numbers", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        if (contacts.isEmpty()) {
-                            "Add a trusted number before listening can start. Plan allows $maxContacts."
+                        if (state.contacts.isEmpty()) {
+                            "Add a trusted number before listening can start. Plan allows ${state.maxContacts}."
                         } else {
-                            "Only these numbers can request location. ${contacts.size} of $maxContacts used."
+                            "Only these numbers can request location. ${state.contacts.size} of ${state.maxContacts} used."
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(12.dp))
-                    contacts.forEach { contact ->
+                    state.contacts.forEach { contact ->
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -349,7 +274,7 @@ fun HomeScreen() {
                             SlamTextButton(text = "Remove", onClick = { pendingDelete = contact })
                         }
                     }
-                    if (contacts.size < maxContacts) {
+                    if (state.contacts.size < state.maxContacts) {
                         SlamPrimaryButton(text = "Add number", onClick = { contactSheetOpen = true })
                     } else {
                         Text(
@@ -360,53 +285,55 @@ fun HomeScreen() {
                 }
             }
 
-            if (pinReady && emergencyAllowed) {
+            if (state.pinReady && state.emergencyAllowed) {
                 Spacer(Modifier.height(12.dp))
                 SlamCard {
                     Column(Modifier.padding(20.dp)) {
                         Text("Emergency", style = MaterialTheme.typography.titleLarge)
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            if (emergencyOn) {
-                                "Sending to trusted numbers every $emergencyHours hour${if (emergencyHours == 1) "" else "s"}."
+                            if (state.emergencyOn) {
+                                "Sending to trusted numbers every ${state.emergencyHours} hour${if (state.emergencyHours == 1) "" else "s"}."
                             } else {
-                                "Timed updates to trusted numbers every $emergencyHours hour${if (emergencyHours == 1) "" else "s"}."
+                                "Timed updates to trusted numbers every ${state.emergencyHours} hour${if (state.emergencyHours == 1) "" else "s"}."
                             },
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        if (emergencyLastResult.isNotBlank()) {
+                        if (state.emergencyLastResult.isNotBlank()) {
                             Spacer(Modifier.height(8.dp))
-                            Text("Last result: $emergencyLastResult", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "Last result: ${state.emergencyLastResult}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-                        if (emergencyOn && emergencyNextRun > 0L) {
+                        if (state.emergencyOn && state.emergencyNextRun > 0L) {
                             Text(
                                 "Next run: ${
                                     java.text.DateFormat.getDateTimeInstance(
                                         java.text.DateFormat.SHORT,
                                         java.text.DateFormat.SHORT,
-                                    ).format(java.util.Date(emergencyNextRun))
+                                    ).format(java.util.Date(state.emergencyNextRun))
                                 }",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         Spacer(Modifier.height(16.dp))
                         SlamPrimaryButton(
-                            text = if (emergencyOn) "Emergency on" else "Start emergency",
-                            enabled = !emergencyOn,
+                            text = if (state.emergencyOn) "Emergency on" else "Start emergency",
+                            enabled = !state.emergencyOn,
                             onClick = {
                                 scope.launch {
                                     when {
-                                        !listening -> emergencyNote = "Start listening first."
-                                        contacts.isEmpty() -> emergencyNote = "Add at least one trusted number."
+                                        !state.listening -> emergencyNote = "Start listening first."
+                                        state.contacts.isEmpty() -> emergencyNote = "Add at least one trusted number."
                                         !store.canLocate() -> emergencyNote = "No locates left on this plan."
                                         else -> {
                                             EmergencyPrefs(context).setOn(true)
                                             EmergencyScheduler.pingNow(context)
                                             EmergencyScheduler.start(context, store.cachedEmergencyHours())
-                                            emergencyOn = true
                                             emergencyNote = null
                                             toast.show("Emergency started", SlamToastTone.SUCCESS)
-                                            refreshDeviceState()
+                                            viewModel.refreshDeviceState()
                                         }
                                     }
                                 }
@@ -418,7 +345,7 @@ fun HomeScreen() {
                             onClick = {
                                 EmergencyPrefs(context).setOn(false)
                                 EmergencyScheduler.stop(context)
-                                emergencyOn = false
+                                viewModel.refreshDeviceState()
                                 scope.launch { toast.show("Emergency stopped") }
                             },
                         )
@@ -440,11 +367,11 @@ fun HomeScreen() {
                     SlamPrimaryButton(
                         text = when {
                             missingPermissions.any { it != "background location" } -> "Allow required permissions"
-                            !prerequisiteStatus.backgroundLocationGranted -> "Allow background location"
-                            !prerequisiteStatus.locationServicesEnabled -> "Open Location settings"
+                            !prerequisites.backgroundLocationGranted -> "Allow background location"
+                            !prerequisites.locationServicesEnabled -> "Open Location settings"
                             else -> "Permissions granted"
                         },
-                        enabled = !prerequisiteStatus.listenerReady || !prerequisiteStatus.locationServicesEnabled,
+                        enabled = !prerequisites.listenerReady || !prerequisites.locationServicesEnabled,
                         onClick = {
                             when {
                                 missingPermissions.any { it != "background location" } ->
@@ -457,9 +384,9 @@ fun HomeScreen() {
                                             Manifest.permission.POST_NOTIFICATIONS,
                                         ),
                                     )
-                                !prerequisiteStatus.backgroundLocationGranted ->
+                                !prerequisites.backgroundLocationGranted ->
                                     backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-                                !prerequisiteStatus.locationServicesEnabled ->
+                                !prerequisites.locationServicesEnabled ->
                                     context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                                 else -> Unit
                             }
@@ -470,8 +397,27 @@ fun HomeScreen() {
         }
 
         Spacer(Modifier.height(16.dp))
-        SlamTextButton(text = "How tracking works", onClick = { helpOpen = true })
+        SlamTextButton(
+            text = "How tracking works",
+            onClick = {
+                helpPage = 0
+                helpOpen = true
+            },
+        )
         Spacer(Modifier.height(24.dp))
+    }
+
+    if (confirmListen) {
+        SlamModal(
+            title = "Start listening?",
+            message = "While listening is on, numbers on your trusted list can request this phone’s location by SMS if they use your PIN. You can stop listening anytime.",
+            confirmLabel = "Start listening",
+            onConfirm = {
+                confirmListen = false
+                scope.launch { startListenerWhenReady() }
+            },
+            onDismiss = { confirmListen = false },
+        )
     }
 
     pinError?.let { message ->
@@ -499,7 +445,7 @@ fun HomeScreen() {
                 Spacer(Modifier.height(12.dp))
                 SlamField(
                     value = currentPin,
-                    onValueChange = { if (it.length <= pinMaxLength && it.all(Char::isDigit)) currentPin = it },
+                    onValueChange = { if (it.length <= state.pinMaxLength && it.all(Char::isDigit)) currentPin = it },
                     label = "Current PIN",
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -507,7 +453,7 @@ fun HomeScreen() {
                 Spacer(Modifier.height(8.dp))
                 SlamField(
                     value = newPin,
-                    onValueChange = { if (it.length <= pinMaxLength && it.all(Char::isDigit)) newPin = it },
+                    onValueChange = { if (it.length <= state.pinMaxLength && it.all(Char::isDigit)) newPin = it },
                     label = "New PIN",
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -519,10 +465,10 @@ fun HomeScreen() {
                         when {
                             !pinStore.verify(currentPin) ->
                                 scope.launch { toast.show("Current PIN is incorrect.", SlamToastTone.DANGER) }
-                            !pinStore.setPin(newPin, pinMinLength, pinMaxLength) ->
+                            !pinStore.setPin(newPin, state.pinMinLength, state.pinMaxLength) ->
                                 scope.launch {
                                     toast.show(
-                                        "New PIN must be $pinMinLength to $pinMaxLength digits.",
+                                        "New PIN must be ${state.pinMinLength} to ${state.pinMaxLength} digits.",
                                         SlamToastTone.WARNING,
                                     )
                                 }
@@ -532,6 +478,7 @@ fun HomeScreen() {
                                 changePinOpen = false
                                 scope.launch {
                                     db.failedPins().clear()
+                                    viewModel.reloadLocal()
                                     toast.show("PIN updated", SlamToastTone.SUCCESS)
                                 }
                             }
@@ -568,8 +515,8 @@ fun HomeScreen() {
                             return@SlamPrimaryButton
                         }
                         scope.launch {
-                            if (db.trustedNumbers().count() >= maxContacts) {
-                                formError = "This plan allows $maxContacts trusted number${if (maxContacts == 1) "" else "s"}."
+                            if (db.trustedNumbers().count() >= state.maxContacts) {
+                                formError = "This plan allows ${state.maxContacts} trusted number${if (state.maxContacts == 1) "" else "s"}."
                                 return@launch
                             }
                             val normalized = PhoneNumbers.last10(newNumber)
@@ -587,7 +534,7 @@ fun HomeScreen() {
                             newLabel = ""
                             newNumber = ""
                             contactSheetOpen = false
-                            reloadContacts()
+                            viewModel.reloadLocal()
                             toast.show("Trusted number added", SlamToastTone.SUCCESS)
                         }
                     },
@@ -620,8 +567,8 @@ fun HomeScreen() {
                     val empty = db.trustedNumbers().count() == 0
                     if (empty) SlamListenerService.stop(context)
                     pendingDelete = null
-                    reloadContacts()
-                    refreshDeviceState()
+                    viewModel.reloadLocal()
+                    viewModel.refreshDeviceState()
                     toast.show(
                         if (empty) "Number removed. Tracking stopped." else "Number removed.",
                         SlamToastTone.SUCCESS,
@@ -633,18 +580,50 @@ fun HomeScreen() {
     }
 
     if (helpOpen) {
+        val pages = listOf(
+            "Send an SMS like this:\n\n${state.smsPrefix} 1234 LOCATE\n\nUse your real PIN. The tracked phone replies with a clear location message and map link.",
+            "Only numbers on your Trusted list can request a location. Add them on this Tracking tab before you start listening.",
+            "Allow SMS, location (including background), and notifications. Then tap Start listening. A confirmation appears before listening begins.",
+            "Emergency sends timed updates to every trusted number and uses one locate per run, not one per recipient. Stop it anytime from this tab.",
+        )
         ModalBottomSheet(
             onDismissRequest = { helpOpen = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
             Column(Modifier.padding(24.dp)) {
-                Text("How tracking works", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(12.dp))
                 Text(
-                    "Text $smsPrefix, then your PIN, then LOCATE. Example: $smsPrefix 1234 LOCATE. " +
-                        "This phone replies with a clear location SMS. Only trusted numbers can request a location.",
+                    "How tracking works · ${helpPage + 1}/${pages.size}",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    pages[helpPage],
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(Modifier.height(24.dp))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    if (helpPage > 0) {
+                        SlamPrimaryButton(
+                            text = "Back",
+                            style = SlamButtonStyle.SECONDARY,
+                            onClick = { helpPage -= 1 },
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                    }
+                    SlamPrimaryButton(
+                        text = if (helpPage == pages.lastIndex) "Finish" else "Next",
+                        onClick = {
+                            if (helpPage == pages.lastIndex) {
+                                helpOpen = false
+                            } else {
+                                helpPage += 1
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 Spacer(Modifier.height(24.dp))
             }
         }

@@ -112,6 +112,10 @@ class SessionStore(private val context: Context) {
     suspend fun cachedSmsPrefix(): String = smsPrefix.first()
     suspend fun cachedPinMinLength(): Int = pinMinLength.first()
     suspend fun cachedPinMaxLength(): Int = pinMaxLength.first()
+    suspend fun cachedPlanName(): String {
+        val accountId = accountId()
+        return context.dataStore.data.first()[stringPreferencesKey(scoped("plan_name", accountId))] ?: "Free"
+    }
 
     suspend fun clearSession() {
         val userId = accountId()
@@ -150,6 +154,8 @@ class SessionStore(private val context: Context) {
             }
             it[intPreferencesKey(scoped("max_contacts", accountId))] =
                 (subscription?.maxContacts ?: 1).coerceAtLeast(1)
+            it[stringPreferencesKey(scoped("plan_name", accountId))] =
+                subscription?.planName ?: "Free"
         }
     }
 
