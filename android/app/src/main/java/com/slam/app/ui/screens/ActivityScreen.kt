@@ -101,7 +101,7 @@ fun ActivityScreen(viewModel: ActivityViewModel = viewModel()) {
             item {
                 SlamBanner(
                     title = "Offline",
-                    message = "Showing activity stored on this phone.",
+                    message = "Couldn’t reach the server. Showing what is saved on this phone.",
                     tone = SlamStatusTone.WARNING,
                 )
             }
@@ -122,7 +122,7 @@ fun ActivityScreen(viewModel: ActivityViewModel = viewModel()) {
             item {
                 SlamBanner(
                     title = "No activity yet",
-                    message = "Successful manual and emergency locations will appear here.",
+                    message = "No location replies on this phone yet. Successful SMS or emergency locates will show up here.",
                     tone = SlamStatusTone.NEUTRAL,
                 )
             }

@@ -18,8 +18,10 @@ enum class AppearanceMode {
 
 class UiPreferences(private val context: Context) {
     val appearance: Flow<AppearanceMode> = context.uiDataStore.data.map { prefs ->
-        runCatching { AppearanceMode.valueOf(prefs[KEY_APPEARANCE].orEmpty()) }
-            .getOrDefault(AppearanceMode.DARK)
+        when (runCatching { AppearanceMode.valueOf(prefs[KEY_APPEARANCE].orEmpty()) }.getOrNull()) {
+            AppearanceMode.LIGHT -> AppearanceMode.LIGHT
+            AppearanceMode.DARK, AppearanceMode.SYSTEM, null -> AppearanceMode.DARK
+        }
     }
 
     val hapticsEnabled: Flow<Boolean> = context.uiDataStore.data.map {
@@ -30,8 +32,22 @@ class UiPreferences(private val context: Context) {
         it[KEY_LAST_KNOWN] ?: true
     }
 
+    suspend fun migrateAppearanceIfNeeded() {
+        context.uiDataStore.edit { prefs ->
+            val raw = prefs[KEY_APPEARANCE].orEmpty()
+            if (raw == AppearanceMode.SYSTEM.name || raw.isBlank()) {
+                prefs[KEY_APPEARANCE] = AppearanceMode.DARK.name
+            }
+        }
+    }
+
     suspend fun setAppearance(mode: AppearanceMode) {
-        context.uiDataStore.edit { it[KEY_APPEARANCE] = mode.name }
+        val resolved = if (mode == AppearanceMode.SYSTEM) AppearanceMode.DARK else mode
+        context.uiDataStore.edit { it[KEY_APPEARANCE] = resolved.name }
+    }
+
+    suspend fun setDarkTheme(enabled: Boolean) {
+        setAppearance(if (enabled) AppearanceMode.DARK else AppearanceMode.LIGHT)
     }
 
     suspend fun setHapticsEnabled(enabled: Boolean) {

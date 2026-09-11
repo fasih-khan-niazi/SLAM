@@ -1,6 +1,5 @@
 package com.slam.app.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -63,11 +62,7 @@ fun SlamTheme(
     val preference by UiPreferences(context).appearance.collectAsStateWithLifecycle(
         initialValue = AppearanceMode.DARK,
     )
-    val useDark = darkTheme ?: when (preference) {
-        AppearanceMode.SYSTEM -> isSystemInDarkTheme()
-        AppearanceMode.LIGHT -> false
-        AppearanceMode.DARK -> true
-    }
+    val useDark = darkTheme ?: (preference != AppearanceMode.LIGHT)
     val scheme = if (useDark) DarkScheme else LightScheme
     val view = LocalView.current
     SideEffect {
