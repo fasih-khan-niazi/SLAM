@@ -8,14 +8,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +27,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.slam.app.feature.auth.AuthFieldErrors
 import com.slam.app.feature.auth.AuthValidation
 import com.slam.app.feature.auth.AuthViewModel
@@ -33,9 +36,6 @@ import com.slam.app.ui.components.SlamField
 import com.slam.app.ui.components.SlamModal
 import com.slam.app.ui.components.SlamPrimaryButton
 import com.slam.app.ui.components.SlamTextButton
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.runtime.LaunchedEffect
 
 @Composable
 fun RegisterScreen(
@@ -66,15 +66,15 @@ fun RegisterScreen(
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
     ) {
-        Spacer(Modifier.height(24.dp))
-        Text("Create account", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(32.dp))
+        Text("Create account", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Your phone stays trackable over SMS. The account is for plans and limits.",
+            "Your phone stays trackable over SMS. The account syncs plans and limits.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(28.dp))
         SlamField(
             value = name,
             onValueChange = {
@@ -104,7 +104,7 @@ fun RegisterScreen(
                 phone = it
                 fieldErrors = fieldErrors.copy(phone = null)
             },
-            label = "Phone",
+            label = "Phone (11–12 digits)",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             isError = fieldErrors.phone != null,
             supportingText = fieldErrors.phone,
@@ -138,12 +138,12 @@ fun RegisterScreen(
                 fieldErrors = fieldErrors.copy(confirmPassword = null)
             },
             label = "Confirm password",
-            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+            visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             isError = fieldErrors.confirmPassword != null,
             supportingText = fieldErrors.confirmPassword,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(28.dp))
         SlamPrimaryButton(
             text = "Create account",
             loading = authState.loading,
@@ -154,12 +154,13 @@ fun RegisterScreen(
                 viewModel.register(name, email, phone, password)
             },
         )
-        SlamTextButton(text = "Already have an account", onClick = onBackToLogin)
+        Spacer(Modifier.height(8.dp))
+        SlamTextButton(text = "Back to sign in", onClick = onBackToLogin)
     }
 
     authState.error?.let { message ->
         SlamModal(
-            title = "Could not register",
+            title = "Could not create account",
             message = message,
             confirmLabel = "OK",
             cancelLabel = "",

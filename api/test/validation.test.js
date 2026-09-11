@@ -15,4 +15,10 @@ test('registration validates and normalizes international phone numbers', () => 
     password: 'password123',
     phone: '+92 300-1234567',
   }), null)
+  assert.equal(validateRegister({
+    name: 'Owner',
+    email: 'owner@example.com',
+    password: 'password123',
+    phone: '0300123456',
+  }), 'Enter a valid phone number (11–12 digits)')
 })
