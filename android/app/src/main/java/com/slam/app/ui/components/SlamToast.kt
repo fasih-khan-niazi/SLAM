@@ -68,6 +68,7 @@ val LocalSlamToastHostState = staticCompositionLocalOf<SlamToastHostState> {
 fun SlamToastHost(
     hostState: SlamToastHostState,
     modifier: Modifier = Modifier,
+    fromTop: Boolean = false,
 ) {
     var current by remember { mutableStateOf<SlamToastMessage?>(null) }
     val progress = remember { Animatable(1f) }
@@ -90,11 +91,14 @@ fun SlamToastHost(
         }
     }
 
-    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = if (fromTop) Alignment.TopCenter else Alignment.BottomCenter,
+    ) {
         AnimatedVisibility(
             visible = current != null,
-            enter = slideInVertically { it / 2 } + fadeIn(),
-            exit = slideOutVertically { it / 2 } + fadeOut(),
+            enter = slideInVertically { height -> if (fromTop) -height / 2 else height / 2 } + fadeIn(),
+            exit = slideOutVertically { height -> if (fromTop) -height / 2 else height / 2 } + fadeOut(),
         ) {
             val message = current ?: return@AnimatedVisibility
             val accent = when (message.tone) {

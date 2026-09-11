@@ -49,7 +49,7 @@ fun SettingsScreen(
     var preferBattery by remember { mutableStateOf(false) }
     var displayName by remember { mutableStateOf("") }
     var confirmSignOut by remember { mutableStateOf(false) }
-    val appearance by uiPreferences.appearance.collectAsStateWithLifecycle(AppearanceMode.DARK)
+    val appearance by uiPreferences.appearance.collectAsStateWithLifecycle(AppearanceMode.LIGHT)
     val hapticsEnabled by uiPreferences.hapticsEnabled.collectAsStateWithLifecycle(true)
     val lastKnownEnabled by uiPreferences.lastKnownFallbackEnabled.collectAsStateWithLifecycle(true)
     val darkThemeOn = appearance != AppearanceMode.LIGHT

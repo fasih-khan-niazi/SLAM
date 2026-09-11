@@ -3,7 +3,6 @@ package com.slam.app.ui.screens
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -39,11 +38,21 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.slam.app.feature.auth.AuthFieldErrors
 import com.slam.app.feature.auth.AuthValidation
 import com.slam.app.feature.auth.AuthViewModel
-import com.slam.app.ui.components.SlamCard
+import com.slam.app.ui.components.AuthScreenScaffold
+import com.slam.app.ui.components.SlamButtonStyle
 import com.slam.app.ui.components.SlamField
 import com.slam.app.ui.components.SlamModal
 import com.slam.app.ui.components.SlamPrimaryButton
 import com.slam.app.ui.components.SlamTextButton
+
+private val consentPoints = listOf(
+    "You confirm you own this phone, or you have the owner’s clear permission to install and run SLAM on it.",
+    "When Listening is on, trusted numbers you add can send an SMS with your PIN to request this phone’s location.",
+    "SLAM may use SMS, location (including background), and notifications so tracking can work when the app is not open.",
+    "Some phones pause background apps to save battery. You may need to allow unrestricted battery use for reliable listening.",
+    "Signing out stops tracking on this phone and clears trusted numbers and local activity. Your tracking PIN stays with your account and is restored when you sign back in.",
+    "Do not use SLAM to monitor anyone without their knowledge and consent.",
+)
 
 @Composable
 fun RegisterScreen(
@@ -60,6 +69,8 @@ fun RegisterScreen(
     var confirmPassword by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
     var agreed by rememberSaveable { mutableStateOf(false) }
+    var consentOpen by rememberSaveable { mutableStateOf(false) }
+    var consentRead by rememberSaveable { mutableStateOf(false) }
     var fieldErrors by remember { mutableStateOf(AuthFieldErrors()) }
 
     LaunchedEffect(authState.authenticated) {
@@ -69,21 +80,10 @@ fun RegisterScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+    AuthScreenScaffold(
+        title = "Create account",
+        subtitle = "Your phone stays trackable over SMS. The account syncs plans, limits, and your tracking PIN.",
     ) {
-        Spacer(Modifier.height(24.dp))
-        Text("Create account", style = MaterialTheme.typography.headlineLarge)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Your phone stays trackable over SMS. The account syncs plans and limits.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(24.dp))
         SlamField(
             value = name,
             onValueChange = {
@@ -153,62 +153,52 @@ fun RegisterScreen(
             supportingText = fieldErrors.confirmPassword,
         )
 
-        Spacer(Modifier.height(24.dp))
-        SlamCard {
-            Column(Modifier.padding(20.dp)) {
-                Text("Consent and disclosure", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Please read this carefully before creating an account.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Spacer(Modifier.height(20.dp))
+        SlamPrimaryButton(
+            text = if (consentRead) "Review consent again" else "Read consent and disclosure",
+            style = SlamButtonStyle.SECONDARY,
+            onClick = { consentOpen = true },
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = agreed,
+                    enabled = consentRead,
+                    role = Role.Checkbox,
+                    onValueChange = { agreed = it },
                 )
-                Spacer(Modifier.height(12.dp))
-                ConsentBullet(
-                    "You confirm you own this phone, or you have the owner’s clear permission to install and run SLAM on it.",
-                )
-                ConsentBullet(
-                    "When Listening is on, trusted numbers you add can send an SMS with your PIN to request this phone’s location.",
-                )
-                ConsentBullet(
-                    "SLAM may use SMS, location (including background), and notifications so tracking can work when the app is not open.",
-                )
-                ConsentBullet(
-                    "Phone makers (including Oppo) may pause background apps. You may need to allow unrestricted battery use for reliable listening.",
-                )
-                ConsentBullet(
-                    "Signing out stops tracking and clears this account’s PIN, trusted numbers, and local activity from this phone.",
-                )
-                ConsentBullet(
-                    "Do not use SLAM to monitor anyone without their knowledge and consent.",
-                )
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .toggleable(
-                            value = agreed,
-                            role = Role.Checkbox,
-                            onValueChange = { agreed = it },
-                        )
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Checkbox(checked = agreed, onCheckedChange = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "I have read and agree to the consent and disclosure above.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Checkbox(
+                checked = agreed,
+                onCheckedChange = null,
+                enabled = consentRead,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                if (consentRead) {
+                    "I have read and agree to the consent and disclosure."
+                } else {
+                    "Open consent and disclosure first, then agree here."
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (consentRead) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.weight(1f),
+            )
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(20.dp))
         SlamPrimaryButton(
             text = "Create account",
             loading = authState.loading,
-            enabled = agreed && !authState.loading,
+            enabled = agreed && consentRead && !authState.loading,
             onClick = {
                 val validation = AuthValidation.register(name, email, phone, password, confirmPassword)
                 fieldErrors = validation
@@ -218,7 +208,20 @@ fun RegisterScreen(
         )
         Spacer(Modifier.height(8.dp))
         SlamTextButton(text = "Back to sign in", onClick = onBackToLogin)
-        Spacer(Modifier.height(24.dp))
+    }
+
+    if (consentOpen) {
+        SlamModal(
+            title = "Consent and disclosure",
+            message = consentPoints.joinToString("\n\n") { "• $it" },
+            confirmLabel = "I understand",
+            cancelLabel = "Close",
+            onConfirm = {
+                consentRead = true
+                consentOpen = false
+            },
+            onDismiss = { consentOpen = false },
+        )
     }
 
     authState.error?.let { message ->
@@ -229,20 +232,6 @@ fun RegisterScreen(
             cancelLabel = "",
             onConfirm = viewModel::clearError,
             onDismiss = viewModel::clearError,
-        )
-    }
-}
-
-@Composable
-private fun ConsentBullet(text: String) {
-    Row(modifier = Modifier.padding(vertical = 4.dp)) {
-        Text("•", color = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
         )
     }
 }
