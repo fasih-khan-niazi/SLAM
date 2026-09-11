@@ -101,6 +101,75 @@ async function ensureSystemConfigColumns() {
   )
 }
 
+async function ensureLocationLogColumns() {
+  const qi = sequelize.getQueryInterface()
+  let table
+  try {
+    table = await qi.describeTable('location_logs')
+  } catch {
+    return
+  }
+  const eventIdNeedsNotNull = !table.event_id || table.event_id.allowNull
+
+  if (!table.event_id) {
+    await qi.addColumn('location_logs', 'event_id', {
+      type: DataTypes.UUID,
+      allowNull: true,
+    })
+  }
+  if (!table.accuracy_meters) {
+    await qi.addColumn('location_logs', 'accuracy_meters', {
+      type: DataTypes.DECIMAL(8, 2),
+      allowNull: true,
+    })
+  }
+  if (!table.source) {
+    await qi.addColumn('location_logs', 'source', {
+      type: DataTypes.ENUM('CURRENT', 'LAST_KNOWN'),
+      allowNull: false,
+      defaultValue: 'CURRENT',
+    })
+  }
+  if (!table.provider) {
+    await qi.addColumn('location_logs', 'provider', {
+      type: DataTypes.STRING(32),
+      allowNull: true,
+    })
+  }
+  if (!table.captured_at) {
+    await qi.addColumn('location_logs', 'captured_at', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    })
+  }
+
+  // Existing rows predate client event IDs. Give each one a unique UUID before
+  // making the column mandatory, and retain its original capture approximation.
+  await sequelize.query(
+    'UPDATE `location_logs` SET `event_id` = UUID() WHERE `event_id` IS NULL'
+  )
+  await sequelize.query(
+    'UPDATE `location_logs` SET `captured_at` = `createdAt` WHERE `captured_at` IS NULL'
+  )
+  if (eventIdNeedsNotNull) {
+    await qi.changeColumn('location_logs', 'event_id', {
+      type: DataTypes.UUID,
+      allowNull: false,
+    })
+  }
+
+  const indexes = await qi.showIndex('location_logs')
+  const hasUniqueEventId = indexes.some((index) =>
+    index.unique && index.fields.some((field) => field.attribute === 'event_id')
+  )
+  if (!hasUniqueEventId) {
+    await qi.addIndex('location_logs', ['event_id'], {
+      name: 'location_logs_event_id_unique',
+      unique: true,
+    })
+  }
+}
+
 async function seedSystemConfig() {
   const count = await SystemConfig.count()
   if (count > 0) return
@@ -148,6 +217,7 @@ async function syncDatabase() {
     await sequelize.sync()
     console.log('Tables synced')
     await ensureSystemConfigColumns()
+    await ensureLocationLogColumns()
     await seedPlans()
     await seedAdmin()
     await seedSystemConfig()
