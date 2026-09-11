@@ -11,6 +11,8 @@ import com.slam.app.data.remote.LoginBody
 import com.slam.app.data.remote.RegisterBody
 import com.slam.app.data.remote.SlamApi
 import com.slam.app.data.remote.SlamApiFactory
+import com.slam.app.security.PinCloudSync
+import com.slam.app.security.PinStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,6 +61,12 @@ class AuthRepository(
         )
         session.setConsent(true)
         session.cacheUsage(data.subscription)
+        PinCloudSync.restoreLocal(context, data.trackingPin)
+        if (PinStore(context).hasPin()) {
+            PinCloudSync.pushCurrent(context)
+        } else {
+            PinCloudSync.pullIfNeeded(context)
+        }
     }
 
     suspend fun register(
@@ -88,6 +96,7 @@ class AuthRepository(
         )
         session.setConsent(true)
         session.cacheUsage(data.subscription)
+        PinCloudSync.restoreLocal(context, data.trackingPin)
     }
 }
 

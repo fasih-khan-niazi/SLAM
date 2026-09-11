@@ -208,6 +208,28 @@ async function seedAdmin() {
   console.log('Admin account seeded')
 }
 
+async function ensureUserPinColumns() {
+  const qi = sequelize.getQueryInterface()
+  let table
+  try {
+    table = await qi.describeTable('users')
+  } catch {
+    return
+  }
+  if (!table.pin_salt) {
+    await qi.addColumn('users', 'pin_salt', {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+    })
+  }
+  if (!table.pin_verifier) {
+    await qi.addColumn('users', 'pin_verifier', {
+      type: DataTypes.STRING(128),
+      allowNull: true,
+    })
+  }
+}
+
 async function syncDatabase() {
   try {
     await sequelize.authenticate()
@@ -218,6 +240,7 @@ async function syncDatabase() {
     console.log('Tables synced')
     await ensureSystemConfigColumns()
     await ensureLocationLogColumns()
+    await ensureUserPinColumns()
     await seedPlans()
     await seedAdmin()
     await seedSystemConfig()

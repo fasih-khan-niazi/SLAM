@@ -3,6 +3,8 @@ package com.slam.app.data
 import android.content.Context
 import com.slam.app.BuildConfig
 import com.slam.app.data.remote.SlamApiFactory
+import com.slam.app.security.PinCloudSync
+import com.slam.app.security.PinStore
 import kotlinx.coroutines.flow.first
 
 object SessionWarmup {
@@ -30,6 +32,12 @@ object SessionWarmup {
                 session.cacheUsage(data.subscription)
                 if (!session.consentAccepted.first()) {
                     session.setConsent(true)
+                }
+                PinCloudSync.restoreLocal(context, data.trackingPin)
+                if (PinStore(context).hasPin()) {
+                    PinCloudSync.pushCurrent(context)
+                } else {
+                    PinCloudSync.pullIfNeeded(context)
                 }
             }
         }
