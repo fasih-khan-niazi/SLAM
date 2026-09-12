@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +53,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
 import java.time.Instant
+import java.io.IOException
 
 data class ActivityEvent(
     val key: String,
@@ -67,6 +69,7 @@ data class ActivityUiState(
     val events: List<ActivityEvent> = emptyList(),
     val notifications: List<NotificationItem> = emptyList(),
     val syncWarning: String? = null,
+    val sessionExpired: Boolean = false,
 )
 
 class ActivityViewModel(application: Application) : AndroidViewModel(application) {
@@ -77,42 +80,44 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
         refresh()
     }
 
-    fun refresh() {
-        viewModelScope.launch {
+    fun refresh() = viewModelScope.launch {
             val accountId = AccountIdentity.current(getApplication())
             val local = SlamDatabase.get(getApplication()).locationHistory().latest(accountId)
+            _state.value = ActivityUiState(events = local.map { it.toEvent() })
             val token = SessionStore(getApplication()).token.first()
             if (token.isBlank()) {
-                _state.value = ActivityUiState(events = local.map { it.toEvent() })
                 return@launch
             }
 
             val api = SlamApiFactory.create(BuildConfig.API_BASE_URL)
             var syncWarning: String? = null
+            var sessionExpired = false
             var notifications = emptyList<NotificationItem>()
             var remote = emptyList<RemoteLocationLog>()
 
-            runCatching {
+            try {
                 val activity = api.locationActivity("Bearer $token")
                 when {
                     activity.isSuccessful -> remote = activity.body()?.data?.logs.orEmpty()
-                    activity.code() == 401 -> syncWarning = "Session expired. Sign in again."
-                    else -> syncWarning = "Couldn’t sync activity from the server."
+                    activity.code() == 401 -> sessionExpired = true
+                    activity.code() == 404 || activity.code() == 501 -> Unit
+                    activity.code() >= 500 ->
+                        syncWarning = "Server activity is temporarily unavailable."
                 }
-            }.onFailure {
-                syncWarning = "Couldn’t sync activity from the server."
+            } catch (_: IOException) {
+                syncWarning = "Could not reach the server. Showing saved activity."
+            } catch (_: Exception) {
+                syncWarning = "Could not refresh activity. Showing saved activity."
             }
 
-            runCatching {
+            try {
                 val response = api.notifications("Bearer $token")
                 when {
                     response.isSuccessful -> notifications = response.body()?.data?.notifications.orEmpty()
-                    response.code() == 401 -> syncWarning = "Session expired. Sign in again."
-                    syncWarning == null && !response.isSuccessful ->
-                        syncWarning = "Couldn’t sync notifications."
+                    response.code() == 401 -> sessionExpired = true
                 }
-            }.onFailure {
-                if (syncWarning == null) syncWarning = "Couldn’t sync notifications."
+            } catch (_: Exception) {
+                // Notifications are secondary. Keep local activity without a misleading warning.
             }
 
             val merged = mergeEvents(local, remote)
@@ -120,8 +125,8 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
                 events = merged,
                 notifications = notifications,
                 syncWarning = syncWarning,
+                sessionExpired = sessionExpired,
             )
-        }
     }
 
     private fun mergeEvents(
@@ -175,19 +180,26 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ActivityScreen(viewModel: ActivityViewModel = viewModel()) {
+fun ActivityScreen(
+    onSessionExpired: () -> Unit = {},
+    viewModel: ActivityViewModel = viewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val formatter = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    LaunchedEffect(state.sessionExpired) {
+        if (state.sessionExpired) onSessionExpired()
+    }
+
     PullToRefreshBox(
         isRefreshing = refreshing,
         onRefresh = {
             scope.launch {
                 refreshing = true
-                viewModel.refresh()
+                viewModel.refresh().join()
                 refreshing = false
             }
         },
