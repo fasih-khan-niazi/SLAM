@@ -202,7 +202,7 @@ private fun MainTabs(
                             onOpenTracking = { switchTab(SlamRoutes.TRACKING) },
                             onSessionExpired = {
                                 scope.launch {
-                                    accountLifecycle.signOutAndWipe()
+                                    accountLifecycle.signOut()
                                     onSignedOut()
                                 }
                             },
@@ -211,12 +211,21 @@ private fun MainTabs(
                     composable(SlamRoutes.TRACKING) {
                         HomeScreen()
                     }
-                    composable(SlamRoutes.ACTIVITY) { ActivityScreen() }
+                    composable(SlamRoutes.ACTIVITY) {
+                        ActivityScreen(
+                            onSessionExpired = {
+                                scope.launch {
+                                    accountLifecycle.signOut()
+                                    onSignedOut()
+                                }
+                            },
+                        )
+                    }
                     composable(SlamRoutes.SETTINGS) {
                         SettingsScreen(
                             onSignOut = {
                                 scope.launch {
-                                    accountLifecycle.signOutAndWipe()
+                                    accountLifecycle.signOut()
                                     onSignedOut()
                                 }
                             },

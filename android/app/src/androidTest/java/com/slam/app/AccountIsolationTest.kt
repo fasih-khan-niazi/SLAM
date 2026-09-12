@@ -3,10 +3,14 @@ package com.slam.app
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.slam.app.data.AccountIdentity
+import com.slam.app.data.AccountLifecycleManager
 import com.slam.app.data.AccountStateWiper
+import com.slam.app.data.SessionStore
+import com.slam.app.data.local.LocationHistoryEntity
 import com.slam.app.data.local.SlamDatabase
 import com.slam.app.data.local.TrustedNumberEntity
 import com.slam.app.security.PinStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertFalse
@@ -42,5 +46,36 @@ class AccountIsolationTest {
 
         assertFalse(PinStore(context).hasPin())
         assertTrue(SlamDatabase.get(context).trustedNumbers().all().isEmpty())
+    }
+
+    @Test
+    fun signingOutKeepsSameAccountSetupAndHistory() = runBlocking {
+        val accountId = "test-account-a"
+        SessionStore(context).setSession("test-token", "Test User", accountId)
+        assertTrue(PinStore(context).setPin("1234"))
+        val database = SlamDatabase.get(context)
+        database.trustedNumbers().insert(
+            TrustedNumberEntity(
+                label = "Family",
+                number = "+923001234567",
+                normalized = "3001234567",
+            ),
+        )
+        database.locationHistory().insert(
+            LocationHistoryEntity(
+                latitude = 33.6844,
+                longitude = 73.0479,
+                accuracy = "HIGH",
+                requestedBy = "+923001234567",
+            ),
+        )
+
+        AccountLifecycleManager(context).signOut()
+
+        assertTrue(SessionStore(context).token.first().isBlank())
+        assertTrue(AccountIdentity.current(context) == accountId)
+        assertTrue(PinStore(context).hasPin())
+        assertTrue(database.trustedNumbers().all(accountId).isNotEmpty())
+        assertTrue(database.locationHistory().latest(accountId).isNotEmpty())
     }
 }

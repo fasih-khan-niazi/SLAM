@@ -25,6 +25,7 @@ object SessionWarmup {
             )
         }
         if (token.isBlank()) return
+        OutboxScheduler.schedule(context, AccountIdentity.current(context))
         runCatching {
             val response = api.me("Bearer $token")
             val data = response.body()?.data
