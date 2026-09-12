@@ -40,9 +40,9 @@ import com.slam.app.ui.screens.ActivityScreen
 import com.slam.app.ui.screens.DashboardScreen
 import com.slam.app.ui.screens.HomeScreen
 import com.slam.app.ui.screens.LoginScreen
-import com.slam.app.ui.screens.OnboardingScreen
 import com.slam.app.ui.screens.RegisterScreen
 import com.slam.app.ui.screens.SettingsScreen
+import com.slam.app.ui.screens.SlamOnboardingModal
 import com.slam.app.ui.screens.SplashScreen
 import com.slam.app.ui.theme.SlamTheme
 import kotlinx.coroutines.flow.first
@@ -58,7 +58,6 @@ class MainActivity : FragmentActivity() {
                 val nav = rememberNavController()
                 val context = LocalContext.current
                 val store = remember { SessionStore(context) }
-                val onboarding = remember { OnboardingStore(context) }
                 val uiPreferences = remember { UiPreferences(context) }
                 val hapticsEnabled by uiPreferences.hapticsEnabled.collectAsStateWithLifecycle(true)
                 val scope = rememberCoroutineScope()
@@ -67,13 +66,7 @@ class MainActivity : FragmentActivity() {
 
                 suspend fun routeAfterAuth(): String {
                     val token = store.token.first()
-                    if (token.isBlank()) return SlamRoutes.LOGIN
-                    val accountId = AccountIdentity.current(context)
-                    return if (!onboarding.isCompleted(accountId)) {
-                        SlamRoutes.ONBOARDING
-                    } else {
-                        SlamRoutes.MAIN
-                    }
+                    return if (token.isBlank()) SlamRoutes.LOGIN else SlamRoutes.MAIN
                 }
 
                 LaunchedEffect(Unit) {
@@ -123,27 +116,12 @@ class MainActivity : FragmentActivity() {
                                     onBackToLogin = { nav.popBackStack() },
                                 )
                             }
-                            composable(SlamRoutes.ONBOARDING) {
-                                OnboardingScreen(
-                                    onFinished = {
-                                        scope.launch {
-                                            onboarding.markCompleted(AccountIdentity.current(context))
-                                            nav.navigate(SlamRoutes.MAIN) {
-                                                popUpTo(SlamRoutes.ONBOARDING) { inclusive = true }
-                                            }
-                                        }
-                                    },
-                                )
-                            }
                             composable(SlamRoutes.MAIN) {
                                 MainTabs(
                                     onSignedOut = {
                                         nav.navigate(SlamRoutes.LOGIN) {
                                             popUpTo(SlamRoutes.MAIN) { inclusive = true }
                                         }
-                                    },
-                                    onReplayOnboarding = {
-                                        nav.navigate(SlamRoutes.ONBOARDING)
                                     },
                                 )
                             }
@@ -158,18 +136,25 @@ class MainActivity : FragmentActivity() {
 @Composable
 private fun MainTabs(
     onSignedOut: () -> Unit,
-    onReplayOnboarding: () -> Unit,
 ) {
     val context = LocalContext.current
     val accountLifecycle = remember { AccountLifecycleManager(context) }
+    val onboarding = remember { OnboardingStore(context) }
     val scope = rememberCoroutineScope()
     val nav = rememberNavController()
     val toastHost = remember { SlamToastHostState() }
     val entry by nav.currentBackStackEntryAsState()
     val currentRoute = entry?.destination?.route ?: SlamRoutes.HOME
+    var showOnboarding by remember { mutableStateOf(false) }
+    var onboardingReplay by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        SessionWarmup.warm(context)
+        runCatching { SessionWarmup.warm(context) }
+        val accountId = AccountIdentity.current(context)
+        if (!onboarding.isCompleted(accountId)) {
+            showOnboarding = true
+            onboardingReplay = false
+        }
     }
 
     fun switchTab(route: String) {
@@ -183,56 +168,78 @@ private fun MainTabs(
     }
 
     CompositionLocalProvider(LocalSlamToastHostState provides toastHost) {
-        SlamScaffold(
-            currentRoute = currentRoute,
-            onTabSelected = ::switchTab,
-            toastHostState = toastHost,
-        ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
-                NavHost(
-                    navController = nav,
-                    startDestination = SlamRoutes.HOME,
-                    enterTransition = { fadeIn(tween(160)) },
-                    exitTransition = { fadeOut(tween(160)) },
-                    popEnterTransition = { fadeIn(tween(160)) },
-                    popExitTransition = { fadeOut(tween(160)) },
-                ) {
-                    composable(SlamRoutes.HOME) {
-                        DashboardScreen(
-                            onOpenTracking = { switchTab(SlamRoutes.TRACKING) },
-                            onSessionExpired = {
-                                scope.launch {
-                                    accountLifecycle.signOut()
-                                    onSignedOut()
-                                }
-                            },
-                        )
-                    }
-                    composable(SlamRoutes.TRACKING) {
-                        HomeScreen()
-                    }
-                    composable(SlamRoutes.ACTIVITY) {
-                        ActivityScreen(
-                            onSessionExpired = {
-                                scope.launch {
-                                    accountLifecycle.signOut()
-                                    onSignedOut()
-                                }
-                            },
-                        )
-                    }
-                    composable(SlamRoutes.SETTINGS) {
-                        SettingsScreen(
-                            onSignOut = {
-                                scope.launch {
-                                    accountLifecycle.signOut()
-                                    onSignedOut()
-                                }
-                            },
-                            onShowOnboarding = onReplayOnboarding,
-                        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            SlamScaffold(
+                currentRoute = currentRoute,
+                onTabSelected = ::switchTab,
+                toastHostState = toastHost,
+            ) { padding ->
+                Box(Modifier.fillMaxSize().padding(padding)) {
+                    NavHost(
+                        navController = nav,
+                        startDestination = SlamRoutes.HOME,
+                        enterTransition = { fadeIn(tween(160)) },
+                        exitTransition = { fadeOut(tween(160)) },
+                        popEnterTransition = { fadeIn(tween(160)) },
+                        popExitTransition = { fadeOut(tween(160)) },
+                    ) {
+                        composable(SlamRoutes.HOME) {
+                            DashboardScreen(
+                                onOpenTracking = { switchTab(SlamRoutes.TRACKING) },
+                                onSessionExpired = {
+                                    scope.launch {
+                                        accountLifecycle.signOut()
+                                        onSignedOut()
+                                    }
+                                },
+                            )
+                        }
+                        composable(SlamRoutes.TRACKING) {
+                            HomeScreen()
+                        }
+                        composable(SlamRoutes.ACTIVITY) {
+                            ActivityScreen(
+                                onSessionExpired = {
+                                    scope.launch {
+                                        accountLifecycle.signOut()
+                                        onSignedOut()
+                                    }
+                                },
+                            )
+                        }
+                        composable(SlamRoutes.SETTINGS) {
+                            SettingsScreen(
+                                onSignOut = {
+                                    scope.launch {
+                                        accountLifecycle.signOut()
+                                        onSignedOut()
+                                    }
+                                },
+                                onShowOnboarding = {
+                                    onboardingReplay = true
+                                    showOnboarding = true
+                                },
+                            )
+                        }
                     }
                 }
+            }
+
+            if (showOnboarding) {
+                SlamOnboardingModal(
+                    allowDismiss = onboardingReplay,
+                    onFinished = {
+                        scope.launch {
+                            onboarding.markCompleted(AccountIdentity.current(context))
+                            showOnboarding = false
+                            onboardingReplay = false
+                        }
+                    },
+                    onDismiss = {
+                        showOnboarding = false
+                        onboardingReplay = false
+                    },
+                )
             }
         }
     }
