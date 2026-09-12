@@ -25,7 +25,7 @@ class BootReceiver : BroadcastReceiver() {
                 val listening = ListenerPrefs(context).isListening()
                 val emergency = EmergencyPrefs(context).isOn()
                 val status = CorePrerequisites.status(context)
-                val pinReady = PinStore(context).hasPin()
+                val pinReady = PinStore.get(context).hasPin()
                 if (consented && pinReady && listening && status.listenerReady) {
                     SlamListenerService.start(context.applicationContext)
                 }

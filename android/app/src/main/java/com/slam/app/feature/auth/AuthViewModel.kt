@@ -62,7 +62,7 @@ class AuthRepository(
         session.setConsent(true)
         session.cacheUsage(data.subscription)
         PinCloudSync.restoreLocal(context, data.trackingPin)
-        if (PinStore(context).hasPin()) {
+        if (PinStore.get(context).hasPin()) {
             PinCloudSync.pushCurrent(context)
         } else {
             PinCloudSync.pullIfNeeded(context)

@@ -15,7 +15,7 @@ class AccountStateWiper(private val context: Context) {
         OutboxScheduler.cancel(context, userId)
         ListenerPrefs(context).clear(userId)
         EmergencyPrefs(context).clear(userId)
-        PinStore(context).clear(userId)
+        PinStore.get(context).clear(userId)
         LegacyAccountMigrator.markWiped(context, userId)
         SessionStore(context).wipeAccount(userId)
         SlamDatabase.close(context, userId)

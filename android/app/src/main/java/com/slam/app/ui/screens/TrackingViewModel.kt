@@ -7,6 +7,7 @@ import com.slam.app.BuildConfig
 import com.slam.app.data.AccountIdentity
 import com.slam.app.data.EmergencyPrefs
 import com.slam.app.data.ListenerPrefs
+import com.slam.app.data.OutboxDispatcher
 import com.slam.app.data.SessionStore
 import com.slam.app.data.local.SlamDatabase
 import com.slam.app.data.local.TrustedNumberEntity
@@ -16,11 +17,14 @@ import com.slam.app.permissions.CoreStatus
 import com.slam.app.security.PinLockout
 import com.slam.app.security.PinSenderLock
 import com.slam.app.security.PinStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class TrackingUiState(
     val bootstrapped: Boolean = false,
@@ -48,14 +52,21 @@ data class TrackingUiState(
 
 class TrackingViewModel(application: Application) : AndroidViewModel(application) {
     private val session = SessionStore(application)
-    private val pinStore = PinStore(application)
+    private val pinStore = PinStore.get(application)
     private val _state = MutableStateFlow(TrackingUiState())
     val state: StateFlow<TrackingUiState> = _state.asStateFlow()
 
     init {
         viewModelScope.launch {
-            loadFromCache()
-            _state.value = _state.value.copy(bootstrapped = true)
+            try {
+                withTimeoutOrNull(8_000) {
+                    withContext(Dispatchers.IO) { loadFromCache() }
+                }
+            } catch (_: Exception) {
+                // Keep defaults; still leave the skeleton.
+            } finally {
+                _state.value = _state.value.copy(bootstrapped = true)
+            }
             syncInBackground()
         }
         viewModelScope.launch {
@@ -69,16 +80,20 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refreshDeviceState() {
-        viewModelScope.launch { loadFromCache() }
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { loadFromCache() } }
+        }
     }
 
     fun reloadLocal() {
-        viewModelScope.launch { loadFromCache() }
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { loadFromCache() } }
+        }
     }
 
     fun refreshAll() {
         viewModelScope.launch {
-            loadFromCache()
+            runCatching { withContext(Dispatchers.IO) { loadFromCache() } }
             syncInBackground()
         }
     }
@@ -87,18 +102,21 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             _state.value = _state.value.copy(syncing = true)
             try {
+                runCatching { OutboxDispatcher(getApplication()).flush() }
                 val token = session.token.first()
                 val api = SlamApiFactory.create(BuildConfig.API_BASE_URL)
                 val config = runCatching { api.config().body()?.data }.getOrNull()
-                session.cacheProductConfig(
-                    config?.pinAttemptCap,
-                    config?.pinWindowMinutes,
-                    config?.emergencyEnabled,
-                    config?.emergencyIntervalHours,
-                    config?.smsPrefix,
-                    config?.pinMinLength,
-                    config?.pinMaxLength,
-                )
+                if (config != null) {
+                    session.cacheProductConfig(
+                        config.pinAttemptCap,
+                        config.pinWindowMinutes,
+                        config.emergencyEnabled,
+                        config.emergencyIntervalHours,
+                        config.smsPrefix,
+                        config.pinMinLength,
+                        config.pinMaxLength,
+                    )
+                }
                 var plan = _state.value.planName
                 var limit = _state.value.limit
                 if (token.isNotBlank()) {
@@ -110,7 +128,7 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
                         limit = data.subscription?.monthlyLimit ?: limit
                     }
                 }
-                loadFromCache()
+                runCatching { withContext(Dispatchers.IO) { loadFromCache() } }
                 _state.value = _state.value.copy(planName = plan, limit = limit)
             } catch (_: Exception) {
                 // Keep cached UI.

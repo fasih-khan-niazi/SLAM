@@ -28,7 +28,7 @@ class LocateRequestHandler(private val context: Context) {
             session.cachedPinMaxLength(),
         ) ?: return@withContext
         val db = SlamDatabase.get(context)
-        val pinStore = PinStore(context)
+        val pinStore = PinStore.get(context)
         val accountId = AccountIdentity.current(context)
 
         if (!session.consentAccepted.first()) {

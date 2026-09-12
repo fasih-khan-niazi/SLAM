@@ -13,7 +13,7 @@ object PinCloudSync {
         val salt = payload?.salt?.trim().orEmpty()
         val verifier = payload?.verifier?.trim().orEmpty()
         if (salt.isBlank() || verifier.isBlank()) return
-        val store = PinStore(context)
+        val store = PinStore.get(context)
         if (store.hasPin()) return
         store.restore(salt, verifier)
     }
@@ -22,7 +22,7 @@ object PinCloudSync {
         val session = SessionStore(context)
         val token = session.token.first()
         if (token.isBlank()) return
-        val exported = PinStore(context).export() ?: return
+        val exported = PinStore.get(context).export() ?: return
         runCatching {
             SlamApiFactory.create(BuildConfig.API_BASE_URL).savePin(
                 "Bearer $token",
@@ -35,7 +35,7 @@ object PinCloudSync {
         val session = SessionStore(context)
         val token = session.token.first()
         if (token.isBlank()) return
-        if (PinStore(context).hasPin()) return
+        if (PinStore.get(context).hasPin()) return
         runCatching {
             val response = SlamApiFactory.create(BuildConfig.API_BASE_URL).me("Bearer $token")
             val payload = response.body()?.data?.trackingPin

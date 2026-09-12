@@ -47,7 +47,7 @@ class SlamListenerService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (!CorePrerequisites.status(this).listenerReady || !PinStore(this).hasPin()) {
+        if (!CorePrerequisites.status(this).listenerReady || !PinStore.get(this).hasPin()) {
             ListenerPrefs(this).setListening(false)
             QuietLocationWorker.cancel(this)
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -120,7 +120,7 @@ class SlamListenerService : Service() {
         const val ACTION_STOP = "com.slam.app.STOP_LISTENER"
 
         fun start(context: Context): Boolean {
-            if (!CorePrerequisites.status(context).listenerReady || !PinStore(context).hasPin()) {
+            if (!CorePrerequisites.status(context).listenerReady || !PinStore.get(context).hasPin()) {
                 ListenerPrefs(context).setListening(false)
                 return false
             }

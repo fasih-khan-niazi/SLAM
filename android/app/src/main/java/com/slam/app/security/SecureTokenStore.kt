@@ -1,11 +1,12 @@
 package com.slam.app.security
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 
-class SecureTokenStore(context: Context) {
-    private val prefs = EncryptedSharedPreferences.create(
+class SecureTokenStore private constructor(context: Context) {
+    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
         "slam_tokens",
         MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC),
         context.applicationContext,
@@ -24,4 +25,16 @@ class SecureTokenStore(context: Context) {
     }
 
     private fun key(userId: String) = "token:$userId"
+
+    companion object {
+        @Volatile
+        private var instance: SecureTokenStore? = null
+
+        fun get(context: Context): SecureTokenStore {
+            instance?.let { return it }
+            return synchronized(this) {
+                instance ?: SecureTokenStore(context.applicationContext).also { instance = it }
+            }
+        }
+    }
 }
