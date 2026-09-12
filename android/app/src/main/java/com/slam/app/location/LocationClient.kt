@@ -100,7 +100,7 @@ class LocationClient(private val context: Context) {
         return SlamFix(
             latitude = saved.latitude,
             longitude = saved.longitude,
-            accuracy = "LAST_KNOWN",
+            accuracy = "LOW",
             accuracyMeters = saved.accuracyMeters,
             provider = saved.provider,
             timestamp = saved.locationTimestamp,

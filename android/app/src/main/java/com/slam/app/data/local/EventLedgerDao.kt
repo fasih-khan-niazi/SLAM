@@ -61,6 +61,12 @@ abstract class EventLedgerDao {
     @Query("UPDATE event_outbox SET state = 'FAILED', attempts = attempts + 1, lastAttemptAt = :at WHERE eventId = :eventId")
     abstract suspend fun markFailed(eventId: String, at: Long = System.currentTimeMillis())
 
+    @Query(
+        "UPDATE event_outbox SET state = 'PENDING' WHERE accountId = :accountId AND state = 'FAILED' " +
+            "AND (accuracy = 'LAST_KNOWN' OR accuracy = 'LOW')",
+    )
+    abstract suspend fun requeueFailedLastKnown(accountId: String): Int
+
     @Query("DELETE FROM event_outbox WHERE state IN ('SENT', 'FAILED') AND createdAt < :before")
     abstract suspend fun pruneCompleted(before: Long)
 
