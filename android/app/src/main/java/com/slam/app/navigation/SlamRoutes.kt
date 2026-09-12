@@ -5,6 +5,7 @@ object SlamRoutes {
     const val CONSENT = "consent"
     const val LOGIN = "login"
     const val REGISTER = "register"
+    const val ONBOARDING = "onboarding"
     const val MAIN = "main"
     const val HOME = "home"
     const val TRACKING = "tracking"

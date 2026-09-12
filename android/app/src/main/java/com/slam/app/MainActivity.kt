@@ -1,9 +1,9 @@
 package com.slam.app
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -25,6 +25,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.slam.app.data.AccountIdentity
+import com.slam.app.data.OnboardingStore
 import com.slam.app.data.SessionStore
 import com.slam.app.data.SessionWarmup
 import com.slam.app.data.UiPreferences
@@ -38,6 +40,7 @@ import com.slam.app.ui.screens.ActivityScreen
 import com.slam.app.ui.screens.DashboardScreen
 import com.slam.app.ui.screens.HomeScreen
 import com.slam.app.ui.screens.LoginScreen
+import com.slam.app.ui.screens.OnboardingScreen
 import com.slam.app.ui.screens.RegisterScreen
 import com.slam.app.ui.screens.SettingsScreen
 import com.slam.app.ui.screens.SplashScreen
@@ -46,7 +49,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -55,16 +58,27 @@ class MainActivity : ComponentActivity() {
                 val nav = rememberNavController()
                 val context = LocalContext.current
                 val store = remember { SessionStore(context) }
+                val onboarding = remember { OnboardingStore(context) }
                 val uiPreferences = remember { UiPreferences(context) }
                 val hapticsEnabled by uiPreferences.hapticsEnabled.collectAsStateWithLifecycle(true)
                 val scope = rememberCoroutineScope()
                 var bootstrapped by remember { mutableStateOf(false) }
                 var start by remember { mutableStateOf(SlamRoutes.SPLASH) }
 
+                suspend fun routeAfterAuth(): String {
+                    val token = store.token.first()
+                    if (token.isBlank()) return SlamRoutes.LOGIN
+                    val accountId = AccountIdentity.current(context)
+                    return if (!onboarding.isCompleted(accountId)) {
+                        SlamRoutes.ONBOARDING
+                    } else {
+                        SlamRoutes.MAIN
+                    }
+                }
+
                 LaunchedEffect(Unit) {
                     uiPreferences.migrateAppearanceIfNeeded()
-                    val token = store.token.first()
-                    start = if (token.isBlank()) SlamRoutes.LOGIN else SlamRoutes.MAIN
+                    start = routeAfterAuth()
                     bootstrapped = true
                 }
 
@@ -88,8 +102,10 @@ class MainActivity : ComponentActivity() {
                             composable(SlamRoutes.LOGIN) {
                                 LoginScreen(
                                     onLoggedIn = {
-                                        nav.navigate(SlamRoutes.MAIN) {
-                                            popUpTo(SlamRoutes.LOGIN) { inclusive = true }
+                                        scope.launch {
+                                            nav.navigate(routeAfterAuth()) {
+                                                popUpTo(SlamRoutes.LOGIN) { inclusive = true }
+                                            }
                                         }
                                     },
                                     onCreateAccount = { nav.navigate(SlamRoutes.REGISTER) },
@@ -98,11 +114,25 @@ class MainActivity : ComponentActivity() {
                             composable(SlamRoutes.REGISTER) {
                                 RegisterScreen(
                                     onRegistered = {
-                                        nav.navigate(SlamRoutes.MAIN) {
-                                            popUpTo(SlamRoutes.LOGIN) { inclusive = true }
+                                        scope.launch {
+                                            nav.navigate(routeAfterAuth()) {
+                                                popUpTo(SlamRoutes.LOGIN) { inclusive = true }
+                                            }
                                         }
                                     },
                                     onBackToLogin = { nav.popBackStack() },
+                                )
+                            }
+                            composable(SlamRoutes.ONBOARDING) {
+                                OnboardingScreen(
+                                    onFinished = {
+                                        scope.launch {
+                                            onboarding.markCompleted(AccountIdentity.current(context))
+                                            nav.navigate(SlamRoutes.MAIN) {
+                                                popUpTo(SlamRoutes.ONBOARDING) { inclusive = true }
+                                            }
+                                        }
+                                    },
                                 )
                             }
                             composable(SlamRoutes.MAIN) {
@@ -111,6 +141,9 @@ class MainActivity : ComponentActivity() {
                                         nav.navigate(SlamRoutes.LOGIN) {
                                             popUpTo(SlamRoutes.MAIN) { inclusive = true }
                                         }
+                                    },
+                                    onReplayOnboarding = {
+                                        nav.navigate(SlamRoutes.ONBOARDING)
                                     },
                                 )
                             }
@@ -123,7 +156,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun MainTabs(onSignedOut: () -> Unit) {
+private fun MainTabs(
+    onSignedOut: () -> Unit,
+    onReplayOnboarding: () -> Unit,
+) {
     val context = LocalContext.current
     val accountLifecycle = remember { AccountLifecycleManager(context) }
     val scope = rememberCoroutineScope()
@@ -184,6 +220,7 @@ private fun MainTabs(onSignedOut: () -> Unit) {
                                     onSignedOut()
                                 }
                             },
+                            onShowOnboarding = onReplayOnboarding,
                         )
                     }
                 }
