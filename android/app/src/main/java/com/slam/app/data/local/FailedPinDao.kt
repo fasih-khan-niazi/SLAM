@@ -24,6 +24,22 @@ interface FailedPinDao {
     )
     suspend fun countSinceSender(accountId: String, sender: String, since: Long): Int
 
+    @Query(
+        "SELECT requestedBy FROM failed_pin_attempts " +
+            "WHERE accountId = :accountId AND createdAt >= :since " +
+            "GROUP BY requestedBy HAVING COUNT(*) >= :cap ORDER BY MAX(createdAt) DESC"
+    )
+    suspend fun lockedSenders(accountId: String, since: Long, cap: Int): List<String>
+
+    @Query(
+        "SELECT MAX(createdAt) FROM failed_pin_attempts " +
+            "WHERE accountId = :accountId AND requestedBy = :sender AND createdAt >= :since"
+    )
+    suspend fun latestFailAt(accountId: String, sender: String, since: Long): Long?
+
+    @Query("DELETE FROM failed_pin_attempts WHERE accountId = :accountId AND requestedBy = :sender")
+    suspend fun clearSender(accountId: String, sender: String)
+
     @Query("DELETE FROM failed_pin_attempts")
     suspend fun clear()
 

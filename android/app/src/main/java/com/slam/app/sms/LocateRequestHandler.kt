@@ -11,6 +11,7 @@ import com.slam.app.data.local.SmsReceiptEntity
 import com.slam.app.location.LocationClient
 import com.slam.app.location.smsBody
 import com.slam.app.permissions.CorePrerequisites
+import com.slam.app.security.PinLockout
 import com.slam.app.security.PinStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -38,13 +39,19 @@ class LocateRequestHandler(private val context: Context) {
             return@withContext
         }
 
-        val windowMs = session.cachedPinWindowMs()
-        val windowStart = System.currentTimeMillis() - windowMs
+        val windowStart = System.currentTimeMillis() - PinLockout.WINDOW_MS
         db.failedPins().deleteOlderThan(accountId, windowStart)
-        val cap = session.cachedPinAttemptCap()
+
+        // Per-sender only: other trusted numbers stay usable during a lockout.
         val senderFails = db.failedPins().countSinceSender(accountId, from, windowStart)
-        val globalFails = db.failedPins().countSince(accountId, windowStart)
-        if (senderFails >= cap || globalFails >= cap * 5) {
+        if (senderFails >= PinLockout.ATTEMPT_CAP) {
+            return@withContext
+        }
+
+        val trusted = db.trustedNumbers().all(accountId)
+        if (trusted.isEmpty() ||
+            trusted.none { PhoneNumbers.matches(it.normalized.ifBlank { it.number }, from) }
+        ) {
             return@withContext
         }
 
@@ -53,14 +60,7 @@ class LocateRequestHandler(private val context: Context) {
             return@withContext
         }
 
-        db.failedPins().clear(accountId)
-
-        val trusted = db.trustedNumbers().all(accountId)
-        if (trusted.isEmpty() ||
-            trusted.none { PhoneNumbers.matches(it.normalized.ifBlank { it.number }, from) }
-        ) {
-            return@withContext
-        }
+        db.failedPins().clearSender(accountId, from)
 
         val events = EventRepository(context)
         val reservation = events.reserve("MANUAL", "sms:$messageId") ?: return@withContext
