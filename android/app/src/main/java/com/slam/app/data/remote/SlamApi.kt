@@ -1,6 +1,11 @@
 package com.slam.app.data.remote
 
 import com.slam.app.BuildConfig
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonDeserializationContext
+import com.google.gson.JsonDeserializer
+import com.google.gson.JsonElement
+import com.google.gson.JsonParseException
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
@@ -13,6 +18,7 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.PATCH
 import retrofit2.http.Path
+import java.lang.reflect.Type
 import java.util.concurrent.TimeUnit
 
 interface SlamApi {
@@ -78,6 +84,7 @@ object SlamApiFactory {
         val client = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
+            .callTimeout(30, TimeUnit.SECONDS)
             .apply {
                 if (BuildConfig.DEBUG) addInterceptor(
                 HttpLoggingInterceptor().apply {
@@ -90,8 +97,33 @@ object SlamApiFactory {
         return Retrofit.Builder()
             .baseUrl(root)
             .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(tolerantGson()))
             .build()
             .create(SlamApi::class.java)
+    }
+
+    private fun tolerantGson() = GsonBuilder()
+        .registerTypeAdapter(Double::class.java, CoerceNumberDeserializer { it.toDouble() })
+        .registerTypeAdapter(Double::class.javaObjectType, CoerceNumberDeserializer { it.toDouble() })
+        .registerTypeAdapter(Float::class.java, CoerceNumberDeserializer { it.toFloat() })
+        .registerTypeAdapter(Float::class.javaObjectType, CoerceNumberDeserializer { it.toFloat() })
+        .create()
+}
+
+private class CoerceNumberDeserializer<T : Number>(
+    private val parse: (String) -> T,
+) : JsonDeserializer<T> {
+    override fun deserialize(
+        json: JsonElement,
+        typeOfT: Type,
+        context: JsonDeserializationContext,
+    ): T {
+        if (!json.isJsonPrimitive) throw JsonParseException("Expected number")
+        val primitive = json.asJsonPrimitive
+        return when {
+            primitive.isNumber -> parse(primitive.asString)
+            primitive.isString -> parse(primitive.asString.trim())
+            else -> throw JsonParseException("Expected number")
+        }
     }
 }

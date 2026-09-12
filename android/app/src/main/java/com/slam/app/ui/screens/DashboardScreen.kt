@@ -47,7 +47,7 @@ import com.slam.app.ui.components.SlamPrimaryButton
 import com.slam.app.ui.components.SlamStatusChip
 import com.slam.app.ui.components.SlamStatusTone
 import com.slam.app.ui.components.slamHaptic
-import kotlinx.coroutines.async
+import com.slam.app.data.OutboxDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -90,46 +90,67 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun refresh() {
         viewModelScope.launch {
-            val cachedName = session.displayName.first()
-            val cachedRemaining = session.cachedRemaining.first()
-            val lastLocation = SlamDatabase.get(getApplication()).lastLocations()
-                .get(AccountIdentity.current(getApplication()))
-            val accountId = AccountIdentity.current(getApplication())
-            val pending = SlamDatabase.get(getApplication()).eventLedger().pending(accountId).size
-            _state.value = _state.value.copy(
-                name = cachedName,
-                remaining = cachedRemaining.takeUnless { it == Int.MAX_VALUE },
-                listening = ListenerPrefs(getApplication()).run {
-                    isListening() && isServiceActive()
-                },
-                emergency = EmergencyPrefs(getApplication()).isOn(),
-                pendingOutbox = pending,
-                lastLocationSummary = lastLocation?.let {
-                    val ageMinutes = ((System.currentTimeMillis() - it.locationTimestamp)
-                        .coerceAtLeast(0) / 60_000)
-                    "Captured ${ageMinutes}m ago" +
-                        it.accuracyMeters?.let { meters -> " · +/-${meters.toInt()}m" }.orEmpty()
-                },
-            )
-            val token = session.token.first()
-            if (token.isBlank()) {
-                _state.value = _state.value.copy(loading = false)
-                return@launch
-            }
             try {
-                val configCall = async { api.config() }
-                val profileCall = async { api.me("Bearer $token") }
-                val config = configCall.await().body()?.data
-                session.cacheProductConfig(
-                    config?.pinAttemptCap,
-                    config?.pinWindowMinutes,
-                    config?.emergencyEnabled,
-                    config?.emergencyIntervalHours,
-                    config?.smsPrefix,
-                    config?.pinMinLength,
-                    config?.pinMaxLength,
+                val cachedName = runCatching { session.displayName.first() }.getOrDefault("")
+                val cachedRemaining = runCatching { session.cachedRemaining.first() }.getOrDefault(5)
+                val accountId = AccountIdentity.current(getApplication())
+                val lastLocation = runCatching {
+                    SlamDatabase.get(getApplication()).lastLocations().get(accountId)
+                }.getOrNull()
+                val pending = runCatching {
+                    SlamDatabase.get(getApplication()).eventLedger().pending(accountId).size
+                }.getOrDefault(0)
+                _state.value = _state.value.copy(
+                    name = cachedName,
+                    remaining = cachedRemaining.takeUnless { it == Int.MAX_VALUE },
+                    listening = runCatching {
+                        ListenerPrefs(getApplication()).run { isListening() && isServiceActive() }
+                    }.getOrDefault(false),
+                    emergency = runCatching {
+                        EmergencyPrefs(getApplication()).isOn()
+                    }.getOrDefault(false),
+                    pendingOutbox = pending,
+                    lastLocationSummary = lastLocation?.let {
+                        val ageMinutes = ((System.currentTimeMillis() - it.locationTimestamp)
+                            .coerceAtLeast(0) / 60_000)
+                        "Captured ${ageMinutes}m ago" +
+                            it.accuracyMeters?.let { meters -> " · +/-${meters.toInt()}m" }.orEmpty()
+                    },
                 )
-                val profileResponse = profileCall.await()
+                val token = runCatching { session.token.first() }.getOrDefault("")
+                if (token.isBlank()) {
+                    _state.value = _state.value.copy(loading = false)
+                    return@launch
+                }
+
+                runCatching { OutboxDispatcher(getApplication()).flush() }
+                val pendingAfterFlush = runCatching {
+                    SlamDatabase.get(getApplication()).eventLedger().pending(accountId).size
+                }.getOrDefault(0)
+
+                val config = runCatching { api.config().body()?.data }.getOrNull()
+                if (config != null) {
+                    session.cacheProductConfig(
+                        config.pinAttemptCap,
+                        config.pinWindowMinutes,
+                        config.emergencyEnabled,
+                        config.emergencyIntervalHours,
+                        config.smsPrefix,
+                        config.pinMinLength,
+                        config.pinMaxLength,
+                    )
+                }
+
+                val profileResponse = runCatching { api.me("Bearer $token") }.getOrNull()
+                if (profileResponse == null) {
+                    _state.value = _state.value.copy(
+                        loading = false,
+                        offline = true,
+                        pendingOutbox = pendingAfterFlush,
+                        maintenance = config?.maintenance == true,
+                    )
+                    return@launch
+                }
                 if (profileResponse.code() == 401) {
                     _state.value = _state.value.copy(loading = false, sessionExpired = true)
                     return@launch
@@ -146,18 +167,22 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 }
                 profile?.subscription?.let { session.cacheUsage(it) }
                 val contactCap = (profile?.subscription?.maxContacts ?: 1).coerceAtLeast(1)
-                val contactDao = SlamDatabase.get(getApplication()).trustedNumbers()
-                contactDao.all(AccountIdentity.current(getApplication()))
-                    .drop(contactCap)
-                    .forEach { contactDao.delete(it) }
+                runCatching {
+                    val contactDao = SlamDatabase.get(getApplication()).trustedNumbers()
+                    contactDao.all(AccountIdentity.current(getApplication()))
+                        .drop(contactCap)
+                        .forEach { contactDao.delete(it) }
+                }
+                val remainingAfter = session.cachedRemaining.first()
                 _state.value = _state.value.copy(
                     loading = false,
                     name = profile?.user?.name ?: cachedName,
                     plan = profile?.subscription?.planName ?: "Free",
-                    remaining = profile?.subscription?.requestsRemaining,
+                    remaining = remainingAfter.takeUnless { it == Int.MAX_VALUE },
                     limit = profile?.subscription?.monthlyLimit,
                     offline = false,
                     maintenance = config?.maintenance == true,
+                    pendingOutbox = pendingAfterFlush,
                 )
             } catch (_: Exception) {
                 _state.value = _state.value.copy(loading = false, offline = true)
