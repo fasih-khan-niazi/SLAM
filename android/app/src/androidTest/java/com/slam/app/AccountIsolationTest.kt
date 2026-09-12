@@ -32,7 +32,7 @@ class AccountIsolationTest {
     @Test
     fun wipingAccountRemovesPinContactsAndDatabase() = runBlocking {
         AccountIdentity.setCurrent(context, "test-account-a")
-        assertTrue(PinStore(context).setPin("1234"))
+        assertTrue(PinStore.get(context).setPin("1234"))
         SlamDatabase.get(context).trustedNumbers().insert(
             TrustedNumberEntity(
                 label = "Owner",
@@ -44,7 +44,7 @@ class AccountIsolationTest {
         AccountStateWiper(context).wipe("test-account-a")
         AccountIdentity.setCurrent(context, "test-account-b")
 
-        assertFalse(PinStore(context).hasPin())
+        assertFalse(PinStore.get(context).hasPin())
         assertTrue(SlamDatabase.get(context).trustedNumbers().all().isEmpty())
     }
 
@@ -52,7 +52,7 @@ class AccountIsolationTest {
     fun signingOutKeepsSameAccountSetupAndHistory() = runBlocking {
         val accountId = "test-account-a"
         SessionStore(context).setSession("test-token", "Test User", accountId)
-        assertTrue(PinStore(context).setPin("1234"))
+        assertTrue(PinStore.get(context).setPin("1234"))
         val database = SlamDatabase.get(context)
         database.trustedNumbers().insert(
             TrustedNumberEntity(
@@ -74,7 +74,7 @@ class AccountIsolationTest {
 
         assertTrue(SessionStore(context).token.first().isBlank())
         assertTrue(AccountIdentity.current(context) == accountId)
-        assertTrue(PinStore(context).hasPin())
+        assertTrue(PinStore.get(context).hasPin())
         assertTrue(database.trustedNumbers().all(accountId).isNotEmpty())
         assertTrue(database.locationHistory().latest(accountId).isNotEmpty())
     }

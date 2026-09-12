@@ -1,6 +1,7 @@
 package com.slam.app.security
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.slam.app.data.AccountIdentity
@@ -9,8 +10,8 @@ import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
-class PinStore(private val context: Context) {
-    private val prefs = EncryptedSharedPreferences.create(
+class PinStore private constructor(private val context: Context) {
+    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
         "slam_secure",
         MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC),
         context,
@@ -38,6 +39,7 @@ class PinStore(private val context: Context) {
             .putString(saltKey(account), saltHex.lowercase())
             .putString(verifierKey(account), verifierHex.lowercase())
             .remove(KEY_LEGACY_PIN)
+            .remove(recoverableKey(account))
             .commit()
         return true
     }
@@ -50,9 +52,16 @@ class PinStore(private val context: Context) {
         prefs.edit()
             .putString(saltKey(account), salt.toHex())
             .putString(verifierKey(account), verifier.toHex())
+            .putString(recoverableKey(account), pin)
             .remove(KEY_LEGACY_PIN)
             .commit()
         return true
+    }
+
+    /** Local-only recoverable PIN for clipboard copy. Cleared on full wipe / cloud restore. */
+    fun recoverablePin(): String? {
+        val account = AccountIdentity.current(context)
+        return prefs.getString(recoverableKey(account), null)?.takeIf { it.all(Char::isDigit) }
     }
 
     fun verify(pin: String): Boolean {
@@ -60,7 +69,11 @@ class PinStore(private val context: Context) {
         val salt = prefs.getString(saltKey(account), null)?.hexToBytes()
         val expected = prefs.getString(verifierKey(account), null)?.hexToBytes()
         if (salt != null && expected != null) {
-            return MessageDigest.isEqual(expected, derive(pin, salt))
+            val matches = MessageDigest.isEqual(expected, derive(pin, salt))
+            if (matches && prefs.getString(recoverableKey(account), null).isNullOrBlank()) {
+                prefs.edit().putString(recoverableKey(account), pin).commit()
+            }
+            return matches
         }
 
         val legacy = prefs.getString(KEY_LEGACY_PIN, null) ?: return false
@@ -78,6 +91,7 @@ class PinStore(private val context: Context) {
         prefs.edit()
             .remove(saltKey(userId))
             .remove(verifierKey(userId))
+            .remove(recoverableKey(userId))
             .apply {
                 if (userId == AccountIdentity.LEGACY_ACCOUNT_ID) remove(KEY_LEGACY_PIN)
             }
@@ -95,17 +109,28 @@ class PinStore(private val context: Context) {
 
     private fun saltKey(account: String) = "pin_salt:$account"
     private fun verifierKey(account: String) = "pin_verifier:$account"
+    private fun recoverableKey(account: String) = "pin_recoverable:$account"
     private fun ByteArray.toHex() = joinToString("") { "%02x".format(it) }
     private fun String.hexToBytes(): ByteArray? = runCatching {
         if (length % 2 != 0) return@runCatching null
         ByteArray(length / 2) { index -> substring(index * 2, index * 2 + 2).toInt(16).toByte() }
     }.getOrNull()
 
-    private companion object {
-        const val KEY_LEGACY_PIN = "owner_pin"
-        const val SALT_BYTES = 16
-        const val ITERATIONS = 120_000
-        const val KEY_BITS = 256
+    companion object {
+        private const val KEY_LEGACY_PIN = "owner_pin"
+        private const val SALT_BYTES = 16
+        private const val ITERATIONS = 120_000
+        private const val KEY_BITS = 256
+
+        @Volatile
+        private var instance: PinStore? = null
+
+        fun get(context: Context): PinStore {
+            instance?.let { return it }
+            return synchronized(this) {
+                instance ?: PinStore(context.applicationContext).also { instance = it }
+            }
+        }
     }
 }
 

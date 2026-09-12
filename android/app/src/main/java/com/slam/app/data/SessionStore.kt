@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.slam.app.data.local.SlamDatabase
 import com.slam.app.data.remote.SubscriptionInfo
 import com.slam.app.security.SecureTokenStore
 import kotlinx.coroutines.flow.Flow
@@ -22,7 +23,7 @@ private val Context.dataStore by preferencesDataStore("slam_prefs")
 class SessionStore(private val context: Context) {
     val consentAccepted: Flow<Boolean> = context.dataStore.data.map { it[KEY_CONSENT] ?: false }
     val token: Flow<String> = context.dataStore.data.map { prefs ->
-        SecureTokenStore(context).get(AccountIdentity.current(context))
+        SecureTokenStore.get(context).get(AccountIdentity.current(context))
             .ifBlank { prefs[KEY_LEGACY_TOKEN].orEmpty() }
     }
     val displayName: Flow<String> = accountFlow("name", "")
@@ -53,7 +54,7 @@ class SessionStore(private val context: Context) {
     suspend fun setSession(token: String, name: String, userId: String) {
         val previousLegacyToken = context.dataStore.data.first()[KEY_LEGACY_TOKEN]
         AccountIdentity.setCurrent(context, userId)
-        SecureTokenStore(context).put(userId, token)
+        SecureTokenStore.get(context).put(userId, token)
         context.dataStore.edit {
             it[stringPreferencesKey(scoped("name", userId))] = name
             it.remove(KEY_LEGACY_TOKEN)
@@ -124,11 +125,11 @@ class SessionStore(private val context: Context) {
      */
     suspend fun clearAuthentication() {
         val userId = accountId()
-        SecureTokenStore(context).clear(userId)
+        SecureTokenStore.get(context).clear(userId)
     }
 
     suspend fun wipeAccount(userId: String) {
-        SecureTokenStore(context).clear(userId)
+        SecureTokenStore.get(context).clear(userId)
         context.dataStore.edit { prefs ->
             prefs.asMap().keys
                 .filter { it.name.endsWith(":$userId") }
@@ -141,6 +142,10 @@ class SessionStore(private val context: Context) {
         val limit = subscription?.monthlyLimit
         val accountId = accountId()
         val start = parseTime(subscription?.startDate) ?: System.currentTimeMillis()
+        val pendingCount = runCatching {
+            SlamDatabase.get(context).eventLedger().pending(accountId).size
+        }.getOrDefault(0)
+        val localRemaining = runCatching { cachedRemaining.first() }.getOrNull()
         context.dataStore.edit {
             it[longPreferencesKey(scoped("period_anchor", accountId))] = start
             it[stringPreferencesKey(scoped("period_end", accountId))] = subscription?.endDate ?: ""
@@ -150,8 +155,13 @@ class SessionStore(private val context: Context) {
             } else {
                 val cap = limit ?: 5
                 it[intPreferencesKey(scoped("monthly_limit", accountId))] = cap
-                it[intPreferencesKey(scoped("requests_remaining", accountId))] =
-                    subscription?.requestsRemaining ?: cap
+                val serverRemaining = subscription?.requestsRemaining ?: cap
+                val merged = if (pendingCount > 0 && localRemaining != null && localRemaining != Int.MAX_VALUE) {
+                    minOf(serverRemaining, localRemaining)
+                } else {
+                    serverRemaining
+                }
+                it[intPreferencesKey(scoped("requests_remaining", accountId))] = merged
             }
             it[intPreferencesKey(scoped("max_contacts", accountId))] =
                 (subscription?.maxContacts ?: 1).coerceAtLeast(1)

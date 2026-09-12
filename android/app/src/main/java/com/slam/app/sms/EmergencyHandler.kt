@@ -30,7 +30,7 @@ class EmergencyHandler(private val context: Context) {
         }
         if (!emergencyPrefs.isOn()) return@withContext
         if (!ListenerPrefs(context).isListening()) return@withContext
-        if (!PinStore(context).hasPin()) return@withContext
+        if (!PinStore.get(context).hasPin()) return@withContext
         if (!CorePrerequisites.status(context).emergencyReady) {
             emergencyPrefs.recordRun("Waiting for required permissions")
             return@withContext
