@@ -208,7 +208,8 @@ fun RegisterScreen(
     if (consentOpen) {
         SlamModal(
             title = "Consent and disclosure",
-            message = consentPoints.joinToString("\n\n") { "• $it" },
+            message = "Scroll to read every point before confirming.\n\n" +
+                consentPoints.joinToString("\n\n") { "• $it" },
             confirmLabel = "I understand",
             cancelLabel = "Close",
             onConfirm = {
