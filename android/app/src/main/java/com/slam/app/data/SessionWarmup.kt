@@ -9,36 +9,40 @@ import kotlinx.coroutines.flow.first
 
 object SessionWarmup {
     suspend fun warm(context: Context) {
-        val session = SessionStore(context)
-        val token = session.token.first()
-        val api = SlamApiFactory.create(BuildConfig.API_BASE_URL)
         runCatching {
-            val config = api.config().body()?.data
-            session.cacheProductConfig(
-                config?.pinAttemptCap,
-                config?.pinWindowMinutes,
-                config?.emergencyEnabled,
-                config?.emergencyIntervalHours,
-                config?.smsPrefix,
-                config?.pinMinLength,
-                config?.pinMaxLength,
-            )
-        }
-        if (token.isBlank()) return
-        OutboxScheduler.schedule(context, AccountIdentity.current(context))
-        runCatching {
-            val response = api.me("Bearer $token")
-            val data = response.body()?.data
-            if (response.isSuccessful && data != null) {
-                session.cacheUsage(data.subscription)
-                if (!session.consentAccepted.first()) {
-                    session.setConsent(true)
-                }
-                PinCloudSync.restoreLocal(context, data.trackingPin)
-                if (PinStore(context).hasPin()) {
-                    PinCloudSync.pushCurrent(context)
-                } else {
-                    PinCloudSync.pullIfNeeded(context)
+            val session = SessionStore(context)
+            val token = session.token.first()
+            val api = SlamApiFactory.create(BuildConfig.API_BASE_URL)
+            runCatching {
+                val config = api.config().body()?.data
+                session.cacheProductConfig(
+                    config?.pinAttemptCap,
+                    config?.pinWindowMinutes,
+                    config?.emergencyEnabled,
+                    config?.emergencyIntervalHours,
+                    config?.smsPrefix,
+                    config?.pinMinLength,
+                    config?.pinMaxLength,
+                )
+            }
+            if (token.isBlank()) return@runCatching
+            val accountId = AccountIdentity.current(context)
+            OutboxScheduler.schedule(context, accountId)
+            runCatching { OutboxDispatcher(context).flush() }
+            runCatching {
+                val response = api.me("Bearer $token")
+                val data = response.body()?.data
+                if (response.isSuccessful && data != null) {
+                    session.cacheUsage(data.subscription)
+                    if (!session.consentAccepted.first()) {
+                        session.setConsent(true)
+                    }
+                    PinCloudSync.restoreLocal(context, data.trackingPin)
+                    if (PinStore.get(context).hasPin()) {
+                        PinCloudSync.pushCurrent(context)
+                    } else {
+                        PinCloudSync.pullIfNeeded(context)
+                    }
                 }
             }
         }
