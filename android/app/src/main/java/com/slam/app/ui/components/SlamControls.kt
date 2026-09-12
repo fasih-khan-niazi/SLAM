@@ -45,7 +45,25 @@ import androidx.compose.ui.graphics.Color
 val LocalSlamHapticsEnabled = compositionLocalOf { true }
 
 fun View.slamHaptic(enabled: Boolean = true) {
-    if (enabled) performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+    if (!enabled) {
+        isHapticFeedbackEnabled = false
+        return
+    }
+    isHapticFeedbackEnabled = true
+    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE)
+        as? android.os.Vibrator
+    if (vibrator != null && vibrator.hasVibrator()) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            vibrator.vibrate(
+                android.os.VibrationEffect.createOneShot(28, android.os.VibrationEffect.DEFAULT_AMPLITUDE),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(28)
+        }
+        return
+    }
+    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
 }
 
 enum class SlamButtonStyle { PRIMARY, SECONDARY, DESTRUCTIVE }
