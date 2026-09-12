@@ -178,7 +178,19 @@ router.get('/location/activity', protect, async (req, res) => {
       order: [['createdAt', 'DESC']],
       limit: 40,
     })
-    return ok(res, 'Activity fetched', { logs })
+    const normalized = logs.map((log) => {
+      const row = typeof log.toJSON === 'function' ? log.toJSON() : log
+      return {
+        ...row,
+        latitude: Number(row.latitude),
+        longitude: Number(row.longitude),
+        accuracy_meters:
+          row.accuracy_meters == null || row.accuracy_meters === ''
+            ? null
+            : Number(row.accuracy_meters),
+      }
+    })
+    return ok(res, 'Activity fetched', { logs: normalized })
   } catch (err) {
     console.error('Location activity error:', err)
     return fail(res, 500, 'Unable to load activity')

@@ -98,7 +98,10 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
             try {
                 val activity = api.locationActivity("Bearer $token")
                 when {
-                    activity.isSuccessful -> remote = activity.body()?.data?.logs.orEmpty()
+                    activity.isSuccessful -> {
+                        remote = activity.body()?.data?.logs.orEmpty()
+                        upsertRemote(accountId, remote)
+                    }
                     activity.code() == 401 -> sessionExpired = true
                     activity.code() == 404 || activity.code() == 501 -> Unit
                     activity.code() >= 500 ->
@@ -120,13 +123,38 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
                 // Notifications are secondary. Keep local activity without a misleading warning.
             }
 
-            val merged = mergeEvents(local, remote)
+            val refreshedLocal = SlamDatabase.get(getApplication()).locationHistory().latest(accountId)
+            val merged = mergeEvents(refreshedLocal, remote)
             _state.value = ActivityUiState(
                 events = merged,
                 notifications = notifications,
                 syncWarning = syncWarning,
                 sessionExpired = sessionExpired,
             )
+    }
+
+    private suspend fun upsertRemote(accountId: String, remote: List<RemoteLocationLog>) {
+        if (remote.isEmpty()) return
+        val dao = SlamDatabase.get(getApplication()).locationHistory()
+        for (log in remote) {
+            val ts = parseTime(log.capturedAt) ?: parseTime(log.createdAt) ?: continue
+            val existing = dao.findNear(accountId, log.latitude, log.longitude, ts)
+            if (existing != null) continue
+            dao.insert(
+                LocationHistoryEntity(
+                    accountId = accountId,
+                    latitude = log.latitude,
+                    longitude = log.longitude,
+                    accuracy = log.accuracy ?: "LOW",
+                    accuracyMeters = log.accuracyMeters,
+                    locationTimestamp = ts,
+                    isLastKnownFallback = log.source.equals("LAST_KNOWN", ignoreCase = true),
+                    requestedBy = log.requestedBy ?: "remote",
+                    createdAt = ts,
+                ),
+            )
+        }
+        dao.trim(accountId)
     }
 
     private fun mergeEvents(

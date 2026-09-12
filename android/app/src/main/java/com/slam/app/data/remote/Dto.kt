@@ -109,6 +109,7 @@ data class RemoteLocationLog(
     @SerializedName("accuracy_meters") val accuracyMeters: Float? = null,
     val source: String? = null,
     @SerializedName("requested_by") val requestedBy: String? = null,
+    @SerializedName("event_id") val eventId: String? = null,
     @SerializedName("captured_at") val capturedAt: String? = null,
     @SerializedName("createdAt") val createdAt: String? = null,
 )
