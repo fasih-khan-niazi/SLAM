@@ -84,7 +84,7 @@ fun HomeScreen(
     val store = remember { SessionStore(context) }
     val scope = rememberCoroutineScope()
     val toast = LocalSlamToastHostState.current
-    val pinStore = remember { PinStore(context) }
+    val pinStore = remember { PinStore.get(context) }
     val db = remember { SlamDatabase.get(context) }
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -106,7 +106,8 @@ fun HomeScreen(
 
     val prerequisites = state.prerequisites ?: CorePrerequisites.status(context)
     val commandTemplate = "${state.smsPrefix} <PIN> LOCATE"
-    val commandMasked = "${state.smsPrefix} **** LOCATE"
+    val recoverablePin = remember(state.pinReady) { pinStore.recoverablePin() }
+    val commandReady = recoverablePin?.let { "${state.smsPrefix} $it LOCATE" } ?: commandTemplate
 
     suspend fun startListenerWhenReady(): Boolean {
         if (db.trustedNumbers().count() < 1) {
@@ -133,8 +134,13 @@ fun HomeScreen(
 
     fun copyLocateCommand() {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("SLAM command", commandMasked))
-        scope.launch { toast.show("Copied: $commandMasked", SlamToastTone.SUCCESS) }
+        clipboard.setPrimaryClip(ClipData.newPlainText("SLAM command", commandReady))
+        scope.launch {
+            toast.show(
+                if (recoverablePin != null) "Copied locate command." else "Copied template. Replace <PIN> with your PIN.",
+                SlamToastTone.SUCCESS,
+            )
+        }
     }
 
     fun requestChangePin() {
@@ -240,7 +246,7 @@ fun HomeScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshDeviceState()
+                viewModel.refreshAll()
                 if (CorePrerequisites.status(context).backgroundLocationGranted) {
                     openSettingsForBackground = false
                 }
@@ -264,7 +270,7 @@ fun HomeScreen(
     }
 
     PullToRefreshBox(
-        isRefreshing = state.syncing,
+        isRefreshing = state.bootstrapped && state.syncing,
         onRefresh = { viewModel.refreshAll() },
         modifier = Modifier.fillMaxSize(),
     ) {
