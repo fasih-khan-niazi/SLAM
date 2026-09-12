@@ -4,15 +4,17 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.slam.app.BuildConfig
+import com.slam.app.data.AccountIdentity
 import com.slam.app.data.EmergencyPrefs
 import com.slam.app.data.ListenerPrefs
 import com.slam.app.data.SessionStore
 import com.slam.app.data.local.SlamDatabase
 import com.slam.app.data.local.TrustedNumberEntity
 import com.slam.app.data.remote.SlamApiFactory
-import com.slam.app.data.remote.SubscriptionInfo
 import com.slam.app.permissions.CorePrerequisites
 import com.slam.app.permissions.CoreStatus
+import com.slam.app.security.PinLockout
+import com.slam.app.security.PinSenderLock
 import com.slam.app.security.PinStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,6 +42,8 @@ data class TrackingUiState(
     val contacts: List<TrustedNumberEntity> = emptyList(),
     val maxContacts: Int = 1,
     val prerequisites: CoreStatus? = null,
+    val pendingOutbox: Int = 0,
+    val pinLocks: List<PinSenderLock> = emptyList(),
 )
 
 class TrackingViewModel(application: Application) : AndroidViewModel(application) {
@@ -65,19 +69,18 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refreshDeviceState() {
-        val app = getApplication<Application>()
-        _state.value = _state.value.copy(
-            prerequisites = CorePrerequisites.status(app),
-            listening = ListenerPrefs(app).isListening() && ListenerPrefs(app).isServiceActive(),
-            emergencyOn = EmergencyPrefs(app).isOn(),
-            emergencyLastResult = EmergencyPrefs(app).lastResult(),
-            emergencyNextRun = EmergencyPrefs(app).nextRun(),
-            pinReady = pinStore.hasPin(),
-        )
+        viewModelScope.launch { loadFromCache() }
     }
 
     fun reloadLocal() {
         viewModelScope.launch { loadFromCache() }
+    }
+
+    fun refreshAll() {
+        viewModelScope.launch {
+            loadFromCache()
+            syncInBackground()
+        }
     }
 
     fun syncInBackground() {
@@ -124,6 +127,8 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
         val minPin = session.cachedPinMinLength().coerceIn(4, 6)
         val maxPin = session.cachedPinMaxLength().coerceIn(minPin, 6)
         val limit = session.quotaLimit()
+        val accountId = AccountIdentity.current(app)
+        val pending = SlamDatabase.get(app).eventLedger().pending(accountId).size
         _state.value = _state.value.copy(
             planName = session.cachedPlanName(),
             remaining = remaining.takeUnless { it == Int.MAX_VALUE },
@@ -142,6 +147,8 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
             emergencyOn = EmergencyPrefs(app).isOn(),
             emergencyLastResult = EmergencyPrefs(app).lastResult(),
             emergencyNextRun = EmergencyPrefs(app).nextRun(),
+            pendingOutbox = pending,
+            pinLocks = PinLockout.lockedSenders(app),
         )
     }
 }
