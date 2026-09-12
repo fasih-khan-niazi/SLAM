@@ -117,13 +117,14 @@ class SessionStore(private val context: Context) {
         return context.dataStore.data.first()[stringPreferencesKey(scoped("plan_name", accountId))] ?: "Free"
     }
 
-    suspend fun clearSession() {
+    /**
+     * Signs out without deleting account-scoped state. Keeping the active account ID lets a
+     * later login distinguish "same account" from "different account", while the missing token
+     * still routes the app to Login.
+     */
+    suspend fun clearAuthentication() {
         val userId = accountId()
         SecureTokenStore(context).clear(userId)
-        context.dataStore.edit {
-            it.remove(stringPreferencesKey(scoped("name", userId)))
-        }
-        AccountIdentity.clearCurrent(context, userId)
     }
 
     suspend fun wipeAccount(userId: String) {

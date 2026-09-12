@@ -196,7 +196,7 @@ fun SettingsScreen(
                     Spacer(Modifier.height(6.dp))
                 }
                 Text(
-                    "Signing out stops tracking and clears local contacts and activity.",
+                    "Signing out stops tracking. Your setup stays saved on this phone.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(12.dp))
@@ -213,8 +213,8 @@ fun SettingsScreen(
     if (confirmSignOut) {
         SlamModal(
             title = "Sign out and stop tracking?",
-            message = "SLAM will stop listening and emergency updates. This account's PIN, trusted contacts, activity and pending location data will be removed from this phone.",
-            confirmLabel = "Sign out and clear",
+            message = "SLAM will stop listening and emergency updates. Your PIN, trusted contacts, activity and settings stay saved on this phone.",
+            confirmLabel = "Sign out",
             destructive = true,
             onConfirm = {
                 confirmSignOut = false
