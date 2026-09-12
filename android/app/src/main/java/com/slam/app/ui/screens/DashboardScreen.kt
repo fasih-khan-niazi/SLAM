@@ -11,13 +11,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
@@ -62,6 +68,7 @@ data class DashboardUiState(
     val sessionExpired: Boolean = false,
     val lastLocationSummary: String? = null,
     val maintenance: Boolean = false,
+    val pendingOutbox: Int = 0,
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
@@ -87,6 +94,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             val cachedRemaining = session.cachedRemaining.first()
             val lastLocation = SlamDatabase.get(getApplication()).lastLocations()
                 .get(AccountIdentity.current(getApplication()))
+            val accountId = AccountIdentity.current(getApplication())
+            val pending = SlamDatabase.get(getApplication()).eventLedger().pending(accountId).size
             _state.value = _state.value.copy(
                 name = cachedName,
                 remaining = cachedRemaining.takeUnless { it == Int.MAX_VALUE },
@@ -94,6 +103,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     isListening() && isServiceActive()
                 },
                 emergency = EmergencyPrefs(getApplication()).isOn(),
+                pendingOutbox = pending,
                 lastLocationSummary = lastLocation?.let {
                     val ageMinutes = ((System.currentTimeMillis() - it.locationTimestamp)
                         .coerceAtLeast(0) / 60_000)
@@ -156,6 +166,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     onOpenTracking: () -> Unit,
@@ -163,10 +174,23 @@ fun DashboardScreen(
     viewModel: DashboardViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var refreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(state.sessionExpired) {
         if (state.sessionExpired) onSessionExpired()
     }
 
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = {
+            scope.launch {
+                refreshing = true
+                viewModel.refresh()
+                refreshing = false
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
@@ -199,14 +223,23 @@ fun DashboardScreen(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                "Your protection status at a glance.",
+                "Protection status at a glance.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        if (state.pendingOutbox > 0) {
+            item {
+                SlamBanner(
+                    title = "Waiting to sync",
+                    message = "${state.pendingOutbox} locate(s) will upload when online.",
+                    tone = SlamStatusTone.WARNING,
+                )
+            }
         }
         if (state.offline) {
             item {
                 SlamBanner(
-                    title = "Offline",
+                    title = "Sync issue",
                     message = "Showing saved device status. SMS tracking can still work.",
                     tone = SlamStatusTone.WARNING,
                 )
@@ -271,7 +304,7 @@ fun DashboardScreen(
                         if (state.limit == null) {
                             "Unlimited location events"
                         } else {
-                            "${state.remaining ?: "—"} of ${state.limit} locates remaining"
+                            "${state.remaining ?: "-"} of ${state.limit} locates remaining"
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -295,5 +328,6 @@ fun DashboardScreen(
                 }
             }
         }
+    }
     }
 }

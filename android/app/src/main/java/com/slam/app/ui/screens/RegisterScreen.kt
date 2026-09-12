@@ -48,7 +48,7 @@ private val consentPoints = listOf(
     "You own this phone, or have clear permission to run SLAM on it.",
     "Trusted numbers can request location by SMS with your PIN while Listening is on.",
     "SLAM needs SMS, location (including background), and notifications.",
-    "Some phones pause background apps — allow unrestricted battery use if listening stops.",
+    "Some phones pause background apps. Allow unrestricted battery use if listening stops.",
     "Signing out clears local contacts and activity. Your tracking PIN restores with your account.",
     "Do not monitor anyone without their knowledge and consent.",
 )
