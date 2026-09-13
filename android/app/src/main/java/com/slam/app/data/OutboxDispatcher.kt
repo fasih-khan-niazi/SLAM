@@ -36,9 +36,20 @@ class OutboxDispatcher(private val context: Context) {
                 )
                 if (response.isSuccessful) {
                     dao.markSent(entry.eventId)
-                    val remaining = response.body()?.data?.requestsRemaining
-                    if (remaining != null) {
-                        session.applyServerRemaining(remaining)
+                    val data = response.body()?.data
+                    session.applyServerUsage(
+                        remaining = data?.requestsRemaining,
+                        planName = data?.planName,
+                        monthlyLimit = data?.monthlyLimit,
+                    )
+                } else if (response.code() == 403) {
+                    dao.markFailed(entry.eventId)
+                    runCatching {
+                        val me = api.me("Bearer $token")
+                        val data = me.body()?.data
+                        if (me.isSuccessful && data != null) {
+                            session.cacheUsage(data.subscription)
+                        }
                     }
                 } else if (response.code() in 400..499) {
                     dao.markFailed(entry.eventId)

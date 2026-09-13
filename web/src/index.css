@@ -76,16 +76,117 @@ textarea {
 }
 
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 12px 16px;
   padding: 14px 24px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.topbar-side {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.topbar-side-end {
+  justify-content: flex-end;
+}
+
+.nav-center,
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.nav-center {
+  justify-content: center;
+}
+
+.nav-center a,
+.nav-actions a {
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.nav-center a.active,
+.nav-actions a.active {
+  color: var(--primary);
+  background: var(--primary-muted);
+  font-weight: 600;
+}
+
+.page-nav {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 88%, var(--primary-muted));
+}
+
+.page-nav-inner {
+  width: min(960px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 10px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.page-nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: center;
+}
+
+.page-nav-back {
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.page-nav-back:hover {
+  text-decoration: underline;
+}
+
+.page-nav-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  max-width: 36rem;
+}
+
+@media (max-width: 720px) {
+  .topbar {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "brand actions"
+      "nav nav";
+  }
+
+  .topbar-side-start {
+    grid-area: brand;
+  }
+
+  .topbar-side-end {
+    grid-area: actions;
+  }
+
+  .nav-center {
+    grid-area: nav;
+    justify-content: center;
+    width: 100%;
+  }
 }
 
 .brand {
@@ -113,27 +214,6 @@ textarea {
   .brand-tag {
     display: inline;
   }
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.nav-links a {
-  color: var(--text-muted);
-  text-decoration: none;
-  padding: 8px 12px;
-  border-radius: 999px;
-}
-
-.nav-links a.active {
-  color: var(--primary);
-  background: var(--primary-muted);
-  font-weight: 600;
 }
 
 .page {

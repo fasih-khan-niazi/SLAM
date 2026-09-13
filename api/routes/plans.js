@@ -5,9 +5,8 @@ const { getSystemConfig } = require('../utils/config')
 const { ok, fail } = require('../utils/http')
 const {
   addDays,
-  formatSubscription,
-  getCurrentSubscription,
-  getActivePlanInfo,
+  buildSubscriptionPayload,
+  ensureActiveSubscription,
 } = require('../utils/subscription')
 
 const router = express.Router()
@@ -48,20 +47,19 @@ router.post('/subscribe', protect, async (req, res) => {
         user_id,
         status: ['pending_payment', 'pending_approval'],
       },
-    })
-
-    if (pending) {
-      return fail(res, 400, 'You already have a subscription waiting for payment.')
-    }
-
-    const active = await Subscription.findOne({
-      where: { user_id, status: 'active' },
       include: [{ model: SubscriptionPlan, as: 'plan' }],
+      order: [['createdAt', 'DESC']],
     })
+
+    // Paid checkout must never leave the account without a live Free/active row.
+    const active = await ensureActiveSubscription(user_id)
 
     const isFree = plan.price_pkr === 0
 
     if (isFree) {
+      if (active && active.plan && active.plan.price_pkr === 0) {
+        return fail(res, 400, 'You already have an active Free plan.')
+      }
       if (active) {
         return fail(res, 400, 'You already have an active plan.')
       }
@@ -93,8 +91,28 @@ router.post('/subscribe', protect, async (req, res) => {
       return fail(res, 503, 'Payments are paused right now')
     }
 
+    if (active && active.plan_id === plan.id) {
+      return fail(res, 400, 'This plan is already active on your account.')
+    }
+
     if (active && active.plan && active.plan.price_pkr > 0) {
-      return fail(res, 400, 'You already have an active paid plan.')
+      return fail(res, 400, 'You already have an active paid plan. Wait for it to end before choosing another.')
+    }
+
+    if (pending) {
+      if (pending.plan_id === plan.id) {
+        return ok(res, 'Continue payment for this plan', {
+          subscription_id: pending.id,
+          plan_name: pending.plan ? pending.plan.name : plan.name,
+          amount_pkr: pending.plan ? pending.plan.price_pkr : plan.price_pkr,
+          status: pending.status,
+        })
+      }
+      return fail(
+        res,
+        400,
+        `Finish or wait out your pending ${pending.plan ? pending.plan.name : 'plan'} payment before choosing another plan.`
+      )
     }
 
     const subscription = await Subscription.create({
@@ -108,7 +126,7 @@ router.post('/subscribe', protect, async (req, res) => {
 
     return ok(
       res,
-      'Subscription created. Complete payment to activate.',
+      'Subscription created. Complete payment to activate. Your current plan stays active until an admin approves.',
       {
         subscription_id: subscription.id,
         plan_name: plan.name,
@@ -125,34 +143,8 @@ router.post('/subscribe', protect, async (req, res) => {
 
 router.get('/user/subscription', protect, async (req, res) => {
   try {
-    const current = await getCurrentSubscription(req.user.id)
-
-    if (current && current.status !== 'active') {
-      const activeInfo = await getActivePlanInfo(req.user.id)
-      return ok(res, 'Subscription fetched', {
-        ...formatSubscription(current, current.plan, current.requests_used),
-        active_plan: formatSubscription(
-          activeInfo.subscription,
-          activeInfo.plan,
-          activeInfo.requests_used
-        ),
-      })
-    }
-
-    if (current) {
-      return ok(
-        res,
-        'Subscription fetched',
-        formatSubscription(current, current.plan, current.requests_used)
-      )
-    }
-
-    const info = await getActivePlanInfo(req.user.id)
-    return ok(
-      res,
-      'Free plan active',
-      formatSubscription(info.subscription, info.plan, info.requests_used)
-    )
+    const payload = await buildSubscriptionPayload(req.user.id)
+    return ok(res, 'Subscription fetched', payload)
   } catch (err) {
     console.error('Get subscription error:', err)
     return fail(res, 500, 'Unable to load subscription')

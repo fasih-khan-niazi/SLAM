@@ -47,21 +47,24 @@ function PaymentsContent() {
   const [notice, setNotice] = useState(null)
   const [copied, setCopied] = useState(false)
 
-  const waiting = subscription && ['pending_payment', 'pending_approval'].includes(subscription.status)
-  const subscriptionId = presetId || subscription?.subscription_id
-  const amount = presetAmount || subscription?.price_pkr
-  const planName = presetPlan || subscription?.plan_name
+  const waiting = Boolean(subscription?.pending_upgrade)
+    || (subscription && ['pending_payment', 'pending_approval'].includes(subscription.status))
+  const pending = subscription?.pending_upgrade
+    || (waiting ? subscription : null)
+  const subscriptionId = presetId || pending?.subscription_id
+  const amount = presetAmount || pending?.price_pkr
+  const planName = presetPlan || pending?.plan_name
   const accountNumber = method === 'easypaisa' ? (easypaisaAccount || MERCHANT) : (jazzcashAccount || MERCHANT)
 
   const timeline = useMemo(() => {
     const steps = [
       { id: 'chosen', label: 'Plan chosen', done: Boolean(subscriptionId) },
-      { id: 'sent', label: 'Payment sent from your phone', done: Boolean(payments?.some((p) => p.status !== 'rejected')) || subscription?.status === 'pending_approval' },
-      { id: 'review', label: 'Under admin review', done: subscription?.status === 'pending_approval' || payments?.some((p) => p.status === 'pending') },
+      { id: 'sent', label: 'Payment sent from your phone', done: Boolean(payments?.some((p) => p.status !== 'rejected')) || pending?.status === 'pending_approval' },
+      { id: 'review', label: 'Under admin review', done: pending?.status === 'pending_approval' || payments?.some((p) => p.status === 'pending') },
       { id: 'result', label: 'Approved or rejected', done: payments?.some((p) => p.status === 'approved' || p.status === 'rejected') },
     ]
     return steps
-  }, [subscriptionId, payments, subscription])
+  }, [subscriptionId, payments, pending])
 
   useEffect(() => {
     listPayments(token)
@@ -146,8 +149,8 @@ function PaymentsContent() {
                 <h2>{planName || 'Paid plan'}</h2>
                 <p className="plan-price">Rs {amount ?? '—'}</p>
               </div>
-              <StatusChip tone={subscription?.status === 'pending_approval' ? 'warning' : 'warning'}>
-                {subscription?.status === 'pending_approval' ? 'Under review' : 'Waiting for receipt'}
+              <StatusChip tone="warning">
+                {pending?.status === 'pending_approval' ? 'Under review' : 'Waiting for receipt'}
               </StatusChip>
             </div>
 

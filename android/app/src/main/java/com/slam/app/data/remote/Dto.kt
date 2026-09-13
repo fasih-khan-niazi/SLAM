@@ -41,7 +41,27 @@ data class SubscriptionInfo(
     @SerializedName("max_contacts") val maxContacts: Int? = null,
     @SerializedName("start_date") val startDate: String? = null,
     @SerializedName("end_date") val endDate: String? = null,
-)
+    /** Present on older API responses when top-level was a pending upgrade. */
+    @SerializedName("active_plan") val activePlan: SubscriptionInfo? = null,
+    @SerializedName("pending_upgrade") val pendingUpgrade: SubscriptionInfo? = null,
+) {
+    /**
+     * Live entitlements only. Pending upgrades never contribute quota or plan name.
+     */
+    fun forLiveUsage(): SubscriptionInfo {
+        if (status == "pending_payment" || status == "pending_approval") {
+            return activePlan?.forLiveUsage()
+                ?: SubscriptionInfo(
+                    planName = "Free",
+                    status = "active",
+                    requestsRemaining = 5,
+                    monthlyLimit = 5,
+                    maxContacts = 1,
+                )
+        }
+        return this
+    }
+}
 
 data class RegisterBody(
     val name: String,
@@ -95,6 +115,9 @@ data class LocationLogResult(
     @SerializedName("requests_used") val requestsUsed: Int?,
     @SerializedName("requests_remaining") val requestsRemaining: Int?,
     @SerializedName("limit_reached") val limitReached: Boolean?,
+    @SerializedName("plan_name") val planName: String? = null,
+    @SerializedName("monthly_limit") val monthlyLimit: Int? = null,
+    val status: String? = null,
 )
 
 data class LocationActivityList(

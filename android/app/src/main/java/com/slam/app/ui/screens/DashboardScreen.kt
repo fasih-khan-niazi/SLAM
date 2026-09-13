@@ -171,7 +171,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 }
                 profile?.subscription?.let { session.cacheUsage(it) }
-                val contactCap = (profile?.subscription?.maxContacts ?: 1).coerceAtLeast(1)
+                val live = profile?.subscription?.forLiveUsage()
+                val contactCap = (live?.maxContacts ?: 1).coerceAtLeast(1)
                 runCatching {
                     val contactDao = SlamDatabase.get(getApplication()).trustedNumbers()
                     contactDao.all(AccountIdentity.current(getApplication()))
@@ -182,9 +183,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 _state.value = _state.value.copy(
                     loading = false,
                     name = profile?.user?.name ?: cachedName,
-                    plan = profile?.subscription?.planName ?: "Free",
+                    plan = live?.planName ?: "Free",
                     remaining = remainingAfter.takeUnless { it == Int.MAX_VALUE },
-                    limit = profile?.subscription?.monthlyLimit,
+                    limit = live?.monthlyLimit,
                     offline = false,
                     maintenance = config?.maintenance == true,
                     pendingOutbox = pendingAfterFlush,

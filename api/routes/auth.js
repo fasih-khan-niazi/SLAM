@@ -15,9 +15,7 @@ const {
 } = require('../utils/validation')
 const {
   activateFreePlan,
-  getCurrentSubscription,
-  formatSubscription,
-  getActivePlanInfo,
+  buildSubscriptionPayload,
 } = require('../utils/subscription')
 
 const router = express.Router()
@@ -85,26 +83,7 @@ function trackingPinPayload(user) {
 }
 
 async function subscriptionPayload(userId) {
-  const current = await getCurrentSubscription(userId)
-
-  if (current && current.status !== 'active') {
-    const activeInfo = await getActivePlanInfo(userId)
-    return {
-      ...formatSubscription(current, current.plan, current.requests_used),
-      active_plan: formatSubscription(
-        activeInfo.subscription,
-        activeInfo.plan,
-        activeInfo.requests_used
-      ),
-    }
-  }
-
-  if (current) {
-    return formatSubscription(current, current.plan, current.requests_used)
-  }
-
-  const info = await getActivePlanInfo(userId)
-  return formatSubscription(info.subscription, info.plan, info.requests_used)
+  return buildSubscriptionPayload(userId)
 }
 
 function strongPasswordError(password) {

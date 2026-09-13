@@ -80,6 +80,13 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
       return fail(res, 400, 'This subscription is not waiting for payment')
     }
 
+    const openPayment = await Payment.findOne({
+      where: { subscription_id: subscription.id, status: 'pending' },
+    })
+    if (openPayment) {
+      return fail(res, 400, 'A payment for this plan is already waiting for admin review')
+    }
+
     const screenshotUrl = await uploadPaymentScreenshot(req.file.buffer, req.file.originalname)
 
     const payment = await Payment.create({
