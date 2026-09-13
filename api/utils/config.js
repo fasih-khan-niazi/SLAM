@@ -15,7 +15,7 @@ const DEFAULTS = {
   maps_enabled: false,
   email_enabled: true,
   emergency_enabled: true,
-  emergency_interval_hours: 1,
+  emergency_interval_minutes: 60,
   easypaisa_account: DEFAULT_MERCHANT,
   jazzcash_account: DEFAULT_MERCHANT,
 }
@@ -59,10 +59,21 @@ function publicFields(row) {
     maps_enabled: Boolean(row.maps_enabled),
     email_enabled: Boolean(row.email_enabled),
     emergency_enabled: row.emergency_enabled !== false,
-    emergency_interval_hours: clampInt(row.emergency_interval_hours, 1, 1, 24),
+    emergency_interval_minutes: resolveEmergencyMinutes(row),
     easypaisa_account: normalizeMerchant(row.easypaisa_account, easyFallback),
     jazzcash_account: normalizeMerchant(row.jazzcash_account, jazzFallback),
   }
+}
+
+function resolveEmergencyMinutes(row) {
+  if (row.emergency_interval_minutes != null && row.emergency_interval_minutes !== '') {
+    return clampInt(row.emergency_interval_minutes, 60, 15, 1440)
+  }
+  // Legacy hours column → minutes
+  if (row.emergency_interval_hours != null && row.emergency_interval_hours !== '') {
+    return clampInt(Number(row.emergency_interval_hours) * 60, 60, 15, 1440)
+  }
+  return 60
 }
 
 async function getSystemConfig() {

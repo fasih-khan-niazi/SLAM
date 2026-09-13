@@ -34,8 +34,8 @@ class BootReceiver : BroadcastReceiver() {
                 if (consented && pinReady && listening && emergency && status.emergencyReady && hasContacts &&
                     runBlocking { session.cachedEmergencyEnabled() }
                 ) {
-                    val hours = runBlocking { session.cachedEmergencyHours() }
-                    EmergencyScheduler.start(context.applicationContext, hours)
+                    val minutes = runBlocking { session.cachedEmergencyMinutes() }
+                    EmergencyScheduler.start(context.applicationContext, minutes)
                 } else if (emergency) {
                     EmergencyPrefs(context).setOn(false)
                     EmergencyScheduler.stop(context)

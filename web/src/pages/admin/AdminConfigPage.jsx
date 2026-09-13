@@ -78,10 +78,10 @@ export function AdminConfigPage() {
             <p className="section-lede">Command prefix and PIN length rules on the phone.</p>
             <div className="stack-lg">
               <Field id="sms_prefix" label="SMS prefix" value={form.sms_prefix || ''} onChange={(v) => set('sms_prefix', v)} />
-              <Field id="pin_min" label="PIN min length" type="number" value={String(form.pin_min_length ?? 4)} onChange={(v) => set('pin_min_length', Number(v))} />
-              <Field id="pin_max" label="PIN max length" type="number" value={String(form.pin_max_length ?? 6)} onChange={(v) => set('pin_max_length', Number(v))} />
-              <Field id="pin_cap" label="SMS PIN — max wrong attempts" type="number" value={String(form.pin_attempt_cap ?? 3)} onChange={(v) => set('pin_attempt_cap', Number(v))} />
-              <Field id="pin_window" label="SMS PIN — window (minutes)" type="number" value={String(form.pin_window_minutes ?? 15)} onChange={(v) => set('pin_window_minutes', Number(v))} />
+              <Field id="pin_min" label="PIN min length" type="number" integerMode="positive" min={1} value={String(form.pin_min_length ?? 4)} onChange={(v) => set('pin_min_length', v === '' ? '' : Number(v))} />
+              <Field id="pin_max" label="PIN max length" type="number" integerMode="positive" min={1} value={String(form.pin_max_length ?? 6)} onChange={(v) => set('pin_max_length', v === '' ? '' : Number(v))} />
+              <Field id="pin_cap" label="SMS PIN — max wrong attempts" type="number" integerMode="positive" min={1} value={String(form.pin_attempt_cap ?? 3)} onChange={(v) => set('pin_attempt_cap', v === '' ? '' : Number(v))} />
+              <Field id="pin_window" label="SMS PIN — window (minutes)" type="number" integerMode="positive" min={1} value={String(form.pin_window_minutes ?? 15)} onChange={(v) => set('pin_window_minutes', v === '' ? '' : Number(v))} />
             </div>
           </section>
 
@@ -89,8 +89,8 @@ export function AdminConfigPage() {
             <h2>Portal login limits</h2>
             <p className="section-lede">Failed email/password attempts on web and phone login (server-enforced).</p>
             <div className="stack-lg">
-              <Field id="login_cap" label="Max failed attempts" type="number" value={String(form.login_attempt_cap ?? 3)} onChange={(v) => set('login_attempt_cap', Number(v))} />
-              <Field id="login_window" label="Window (minutes)" type="number" value={String(form.login_window_minutes ?? 15)} onChange={(v) => set('login_window_minutes', Number(v))} />
+              <Field id="login_cap" label="Max failed attempts" type="number" integerMode="positive" min={1} value={String(form.login_attempt_cap ?? 3)} onChange={(v) => set('login_attempt_cap', v === '' ? '' : Number(v))} />
+              <Field id="login_window" label="Window (minutes)" type="number" integerMode="positive" min={1} value={String(form.login_window_minutes ?? 15)} onChange={(v) => set('login_window_minutes', v === '' ? '' : Number(v))} />
             </div>
           </section>
 
@@ -104,12 +104,21 @@ export function AdminConfigPage() {
               onChange={(v) => set('emergency_enabled', v)}
             />
             <Field
-              id="emergency_hours"
-              label="Hours between SMS"
+              id="emergency_minutes"
+              label="Minutes between SMS"
               type="number"
-              value={String(form.emergency_interval_hours ?? 1)}
-              onChange={(v) => set('emergency_interval_hours', Number(v))}
+              integerMode="positive"
+              min={15}
+              max={1440}
+              value={String(
+                form.emergency_interval_minutes
+                  ?? (form.emergency_interval_hours != null ? form.emergency_interval_hours * 60 : 60)
+              )}
+              onChange={(v) => set('emergency_interval_minutes', v === '' ? '' : Number(v))}
             />
+            <p className="muted" style={{ marginTop: 8, fontSize: '0.85rem' }}>
+              Android schedules emergency SMS at least every 15 minutes (WorkManager minimum). Default is 60.
+            </p>
           </section>
 
           <section className="admin-section">

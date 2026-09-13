@@ -30,7 +30,7 @@ Expect Free, Basic, Premium.
 Invoke-RestMethod "$base/api/config"
 ```
 
-Expect `sms_prefix: SLAM`, `maintenance: false`, `payments_enabled: true`, `login_attempt_cap: 3`, `pin_attempt_cap: 3`, `emergency_enabled: true`, and `emergency_interval_hours: 1`. These come from the `system_config` row (web Admin → Config). Portal login, SMS PIN, and emergency are separate fields.
+Expect `sms_prefix: SLAM`, `maintenance: false`, `payments_enabled: true`, `login_attempt_cap: 3`, `pin_attempt_cap: 3`, `emergency_enabled: true`, and `emergency_interval_minutes: 60`. These come from the `system_config` row (web Admin → Config). Portal login, SMS PIN, and emergency are separate fields.
 
 ## 3. Register
 
