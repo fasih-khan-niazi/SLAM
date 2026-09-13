@@ -14,13 +14,16 @@ async function readJson(response) {
 async function request(path, options, attempt = 1) {
   let response
   try {
-    response = await fetch(`${BASE}${path}`, options)
+    response = await fetch(`${BASE}${path}`, {
+      credentials: 'include',
+      ...options,
+    })
   } catch {
     if (attempt === 1) {
       await new Promise((resolve) => setTimeout(resolve, 700))
       return request(path, options, 2)
     }
-    throw new ApiError('Cannot reach the server. Wait a moment and try again — it may still be starting.')
+    throw new ApiError('Cannot reach the server. Wait a moment and try again.')
   }
 
   const json = await readJson(response)
