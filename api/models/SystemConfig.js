@@ -72,6 +72,14 @@ const SystemConfig = sequelize.define('SystemConfig', {
     allowNull: false,
     defaultValue: 1,
   },
+  easypaisa_account: {
+    type: DataTypes.STRING(32),
+    allowNull: true,
+  },
+  jazzcash_account: {
+    type: DataTypes.STRING(32),
+    allowNull: true,
+  },
 }, {
   tableName: 'system_config',
   timestamps: true,

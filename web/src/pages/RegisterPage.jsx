@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth, homePathForUser } from '../context/AuthContext'
 import { ApiError } from '../api/client'
 import { Button } from '../components/Button'
 import { Field } from '../components/Field'
@@ -30,7 +30,7 @@ export function RegisterPage() {
   const [error, setError] = useState(null)
   const strength = useMemo(() => scorePassword(password), [password])
 
-  if (user) return <Navigate to="/" replace />
+  if (user) return <Navigate to={homePathForUser(user)} replace />
 
   async function onSubmit(event) {
     event.preventDefault()
@@ -48,13 +48,13 @@ export function RegisterPage() {
     }
     setLoading(true)
     try {
-      await register({
+      const res = await register({
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
         password,
       })
-      navigate('/', { replace: true })
+      navigate(homePathForUser(res.data.user), { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create the account')
     } finally {

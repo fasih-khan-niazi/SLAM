@@ -23,6 +23,8 @@ object SessionWarmup {
                     config?.smsPrefix,
                     config?.pinMinLength,
                     config?.pinMaxLength,
+                    config?.maintenance,
+                    config?.paymentsEnabled,
                 )
             }
             if (token.isBlank()) return@runCatching

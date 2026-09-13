@@ -6,7 +6,7 @@ const helmet = require('helmet')
 const path = require('path')
 const { syncDatabase, sequelize } = require('./models')
 
-const requiredSecrets = ['JWT_SECRET', 'SESSION_SECRET', 'DB_HOST', 'DB_NAME', 'DB_USER']
+const requiredSecrets = ['JWT_SECRET', 'DB_HOST', 'DB_NAME', 'DB_USER']
 const missing = requiredSecrets.filter((key) => !process.env[key])
 if (missing.length) {
   console.error(`Missing required env: ${missing.join(', ')}`)
@@ -18,7 +18,6 @@ const PORT = process.env.PORT || 3000
 
 app.set('trust proxy', 1)
 
-// AdminJS uses inline scripts; keep Helmet on, leave CSP off until Phase 12.
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
@@ -59,18 +58,7 @@ function isLoopbackHost(host) {
   return host === 'localhost' || host === '127.0.0.1' || host === '::1'
 }
 
-function isAdminPath(req) {
-  const path = String(req.originalUrl || req.path || '').split('?')[0]
-  return path === '/admin' || path.startsWith('/admin/')
-}
-
 app.use((req, res, next) => {
-  // AdminJS is served from this same API. Reflect any Origin so
-  // localhost vs 127.0.0.1 vs ::1 (and the Railway public host) can sign in.
-  if (isAdminPath(req)) {
-    return cors({ origin: true, credentials: true })(req, res, next)
-  }
-
   cors({
     origin(origin, callback) {
       if (!origin) return callback(null, true)
@@ -90,6 +78,7 @@ app.use((req, res, next) => {
 })
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+app.use(express.static(path.join(__dirname, 'public')))
 
 app.get('/', (req, res) => {
   res.json({ success: true, message: 'SLAM API is running', version: '1.0.0' })
@@ -112,13 +101,11 @@ app.get('/health', async (req, res) => {
 async function startServer() {
   await syncDatabase()
 
-  const { adminRouter } = require('./admin')
-  app.use('/admin', adminRouter)
-
   app.use(express.json({ limit: '1mb' }))
   app.use(express.urlencoded({ extended: true }))
 
   app.use('/api/auth', require('./routes/auth'))
+  app.use('/api/admin', require('./routes/admin'))
   app.use('/api', require('./routes/plans'))
   app.use('/api', require('./routes/payments'))
   app.use('/api', require('./routes/location'))
@@ -153,7 +140,6 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`SLAM API  http://localhost:${PORT}`)
-    console.log(`Admin     http://localhost:${PORT}/admin`)
     console.log('Listening on 0.0.0.0 (LAN phones can use this PC’s IPv4)')
   })
 }

@@ -15,6 +15,10 @@ function readStoredToken() {
   return sessionStorage.getItem(TOKEN_KEY) || ''
 }
 
+export function homePathForUser(user) {
+  return user?.role === 'admin' ? '/admin' : '/'
+}
+
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => readStoredToken())
   const [user, setUser] = useState(() => {
@@ -84,17 +88,20 @@ export function AuthProvider({ children }) {
     })
   }
 
+  const isAdmin = user?.role === 'admin'
+
   const value = useMemo(() => ({
     token,
     user,
     subscription,
     ready,
+    isAdmin,
     login,
     register,
     logout,
     refresh,
     changePassword,
-  }), [token, user, subscription, ready])
+  }), [token, user, subscription, ready, isAdmin])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

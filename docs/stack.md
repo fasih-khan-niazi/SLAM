@@ -8,12 +8,12 @@
 | Location | Google Play services Fused Location + SLAM-owned last fix | Current fix → clearly timestamped last known |
 | SMS | `SmsReceiver`, `SmsManager` | Command in, location out |
 | Background | Foreground service + WorkManager | SMS listener, emergency schedule, offline event sync |
-| API | Node.js 18+, Express 4.21 | REST + AdminJS at `/admin` |
+| API | Node.js 18+, Express 4.21 | REST (`/api`, `/api/admin`) |
 | API data | MySQL, Sequelize, JWT, bcrypt | Accounts, plans, logs |
 | Email | Nodemailer + Gmail App Password | Payment notices |
 | Files (later) | Cloudinary | Payment screenshots |
-| Web portal | React + Vite | Plans and payments |
-| Admin | AdminJS on the API | Users, payments, plans |
+| Web portal | React + Vite | User plans/payments + admin RBAC |
+| Admin | Web portal `/admin` | Users, payments, plans, config |
 | Hosting | Railway | MySQL + `slam-api` + `slam-web` |
 | Local DB access | Railway public TCP proxy | `*.proxy.rlwy.net` + proxy port |
 | Maps | Later | SMS map links and web map UI when we reach that work |

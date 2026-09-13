@@ -43,7 +43,6 @@ Also set:
 ```
 NODE_ENV=production
 JWT_SECRET=<32+ random characters>
-SESSION_SECRET=<different 32+ random characters>
 ADMIN_EMAIL=admin@slam.com
 ADMIN_PASSWORD=Password123
 EMAIL_USER=slam.app.fyp@gmail.com
@@ -68,12 +67,8 @@ Invoke-RestMethod "$base/api/config"
 
 Expect `database: connected` and Free / Basic / Premium. Then run the register → login steps in [api-testing.md](api-testing.md) against `$base`.
 
-Admin: `https://<slam-api-domain>/admin`  
-`admin@slam.com` / `Password123`
-
-The admin login is a browser POST from that same API URL. `/admin` reflects the request Origin (localhost, 127.0.0.1, and the Railway host all work). Set `API_PUBLIC_URL` to the public domain for emails and portal CORS.
-
-**slam-api must be on a commit that includes this `/admin` CORS change.** If the service tracks `main` and the fix is only on `dev`, `/admin` still returns `Origin not allowed` until you merge and Railway redeploys.
+Operator admin: sign in on **slam-web** as `admin@slam.com` / `Password123` → `/admin`.
+API admin routes are under `/api/admin/*` (JWT + `role === admin`).
 
 ---
 

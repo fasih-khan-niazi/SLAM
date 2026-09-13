@@ -30,7 +30,7 @@ Expect Free, Basic, Premium.
 Invoke-RestMethod "$base/api/config"
 ```
 
-Expect `sms_prefix: SLAM`, `maintenance: false`, `payments_enabled: true`, `login_attempt_cap: 3`, `pin_attempt_cap: 3`, `emergency_enabled: true`, and `emergency_interval_hours: 1`. These come from the `system_config` row (AdminJS → Product settings). Portal login, SMS PIN, and emergency are separate fields.
+Expect `sms_prefix: SLAM`, `maintenance: false`, `payments_enabled: true`, `login_attempt_cap: 3`, `pin_attempt_cap: 3`, `emergency_enabled: true`, and `emergency_interval_hours: 1`. These come from the `system_config` row (web Admin → Config). Portal login, SMS PIN, and emergency are separate fields.
 
 ## 3. Register
 
@@ -129,10 +129,21 @@ Three **failed** portal sign-ins from the same IP (default) return `429`. The co
 
 Duplicate `transaction_id` on `POST /api/payments/submit` still returns `400`.
 
-## Admin panel
+## Admin portal (web)
 
-Browser: http://localhost:3000/admin  
-`admin@slam.com` / `Password123`
+Sign in on the web portal as `admin@slam.com` / `Password123` → `/admin`.
+
+```powershell
+# After login as admin, use the JWT:
+Invoke-RestMethod "$base/api/admin/stats" -Headers $headers
+Invoke-RestMethod "$base/api/admin/payments?status=pending" -Headers $headers
+```
+
+Approve from the portal Payments page, or:
+
+```powershell
+Invoke-RestMethod "$base/api/admin/payments/<id>/approve" -Method PATCH -Headers $headers
+```
 
 ## 11. Payment submit (Phase 8)
 
@@ -147,7 +158,7 @@ $form = @{
 # Attach screenshot as multipart field name "screenshot" (JPG/PNG).
 ```
 
-Then `/admin` → Payments → open the record (Cloudinary URL) → Approve. User gets email plus an in-app notification; plan becomes active.
+Then web `/admin/payments` → Approve. User gets email plus an in-app notification; plan becomes active.
 
 `GET /api/payments/my` lists that user’s history.
 

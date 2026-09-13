@@ -43,6 +43,15 @@ const protect = async (req, res, next) => {
       })
     }
 
+    const { isAccountBlocked, accountBlockMessage } = require('../utils/accountStatus')
+    if (isAccountBlocked(user)) {
+      return res.status(403).json({
+        success: false,
+        message: accountBlockMessage(user),
+        data: null,
+      })
+    }
+
     req.user = user
     next()
   } catch (err) {
