@@ -1,40 +1,48 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { getMe, loginAccount, registerAccount } from '../api/endpoints'
+import {
+  changePassword as changePasswordRequest,
+  getMe,
+  loginAccount,
+  logoutAccount,
+  registerAccount,
+} from '../api/endpoints'
 
 const AuthContext = createContext(null)
 const TOKEN_KEY = 'slam_token'
 const USER_KEY = 'slam_user'
 
+function readStoredToken() {
+  return sessionStorage.getItem(TOKEN_KEY) || ''
+}
+
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '')
+  const [token, setToken] = useState(() => readStoredToken())
   const [user, setUser] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem(USER_KEY) || 'null')
+      return JSON.parse(sessionStorage.getItem(USER_KEY) || 'null')
     } catch {
       return null
     }
   })
   const [subscription, setSubscription] = useState(null)
-  const [ready, setReady] = useState(!localStorage.getItem(TOKEN_KEY))
+  const [ready, setReady] = useState(false)
 
   function persist(nextToken, nextUser, nextSubscription) {
-    setToken(nextToken)
+    setToken(nextToken || '')
     setUser(nextUser)
     setSubscription(nextSubscription || null)
-    if (nextToken) localStorage.setItem(TOKEN_KEY, nextToken)
-    else localStorage.removeItem(TOKEN_KEY)
-    if (nextUser) localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
-    else localStorage.removeItem(USER_KEY)
+    if (nextToken) sessionStorage.setItem(TOKEN_KEY, nextToken)
+    else sessionStorage.removeItem(TOKEN_KEY)
+    if (nextUser) sessionStorage.setItem(USER_KEY, JSON.stringify(nextUser))
+    else sessionStorage.removeItem(USER_KEY)
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(USER_KEY)
   }
 
   useEffect(() => {
-    if (!token) {
-      setReady(true)
-      return
-    }
-    getMe(token)
+    getMe(token || undefined)
       .then((res) => {
-        persist(token, res.data.user, res.data.subscription)
+        persist(token || res.data?.token || '', res.data.user, res.data.subscription)
       })
       .catch(() => {
         persist('', null, null)
@@ -54,8 +62,26 @@ export function AuthProvider({ children }) {
     return res
   }
 
-  function logout() {
+  async function logout() {
+    try {
+      await logoutAccount(token || undefined)
+    } catch {
+      // Always clear local session.
+    }
     persist('', null, null)
+  }
+
+  async function refresh() {
+    const res = await getMe(token || undefined)
+    persist(token || res.data?.token || '', res.data.user, res.data.subscription)
+    return res.data.subscription
+  }
+
+  async function changePassword(currentPassword, newPassword) {
+    await changePasswordRequest(token, {
+      current_password: currentPassword,
+      new_password: newPassword,
+    })
   }
 
   const value = useMemo(() => ({
@@ -66,6 +92,8 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    refresh,
+    changePassword,
   }), [token, user, subscription, ready])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

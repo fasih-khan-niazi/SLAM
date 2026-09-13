@@ -1,9 +1,11 @@
 const express = require('express')
 const multer = require('multer')
-const path = require('path')
-const fs = require('fs')
 const { protect, requireAdmin } = require('../middleware/auth')
 const { sendEmail } = require('../utils/email')
+const { isConfigured, uploadPaymentScreenshot } = require('../utils/cloudinary')
+const { getSystemConfig } = require('../utils/config')
+const { notifyAdmins, notifyUser } = require('../utils/notify')
+const { ok, fail } = require('../utils/http')
 const { cancelOtherActiveSubscriptions } = require('../utils/subscription')
 const {
   Payment,
@@ -14,21 +16,8 @@ const {
 
 const router = express.Router()
 
-const uploadsDir = path.join(__dirname, '..', 'uploads')
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir)
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => {
-    const safe = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')
-    cb(null, `${Date.now()}-${safe}`)
-  },
-})
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/jpg', 'image/png']
@@ -44,31 +33,34 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
   try {
     const { subscription_id, payment_method, transaction_id } = req.body
     const user_id = req.user.id
-    const screenshot = req.file ? req.file.filename : null
 
     if (!subscription_id || !payment_method || !transaction_id) {
-      return res.status(400).json({
-        success: false,
-        message: 'subscription_id, payment_method and transaction_id are required',
-        data: null,
-      })
+      return fail(res, 400, 'subscription_id, payment_method and transaction_id are required')
+    }
+
+    if (!req.file) {
+      return fail(res, 400, 'A JPG or PNG screenshot is required')
     }
 
     if (!['jazzcash', 'easypaisa'].includes(payment_method)) {
-      return res.status(400).json({
-        success: false,
-        message: 'payment_method must be jazzcash or easypaisa',
-        data: null,
-      })
+      return fail(res, 400, 'payment_method must be jazzcash or easypaisa')
+    }
+
+    const config = await getSystemConfig()
+    if (config.maintenance) {
+      return fail(res, 503, 'Service is paused for maintenance')
+    }
+    if (!config.payments_enabled) {
+      return fail(res, 503, 'Payments are paused right now')
+    }
+
+    if (!isConfigured()) {
+      return fail(res, 503, 'Payment screenshots are not configured')
     }
 
     const duplicate = await Payment.findOne({ where: { transaction_id } })
     if (duplicate) {
-      return res.status(400).json({
-        success: false,
-        message: 'This transaction ID has already been submitted',
-        data: null,
-      })
+      return fail(res, 400, 'This transaction ID has already been submitted')
     }
 
     const subscription = await Subscription.findOne({
@@ -77,12 +69,25 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
     })
 
     if (!subscription) {
-      return res.status(404).json({
-        success: false,
-        message: 'Subscription not found',
-        data: null,
-      })
+      return fail(res, 404, 'Subscription not found')
     }
+
+    if (subscription.plan.price_pkr === 0) {
+      return fail(res, 400, 'The Free plan does not require payment')
+    }
+
+    if (!['pending_payment', 'pending_approval'].includes(subscription.status)) {
+      return fail(res, 400, 'This subscription is not waiting for payment')
+    }
+
+    const openPayment = await Payment.findOne({
+      where: { subscription_id: subscription.id, status: 'pending' },
+    })
+    if (openPayment) {
+      return fail(res, 400, 'A payment for this plan is already waiting for admin review')
+    }
+
+    const screenshotUrl = await uploadPaymentScreenshot(req.file.buffer, req.file.originalname)
 
     const payment = await Payment.create({
       user_id,
@@ -90,15 +95,27 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
       subscription_id: subscription.id,
       amount_pkr: subscription.plan.price_pkr,
       payment_method,
-      transaction_id,
-      screenshot_url: screenshot,
+      transaction_id: String(transaction_id).trim(),
+      screenshot_url: screenshotUrl,
       status: 'pending',
     })
 
     await subscription.update({ status: 'pending_approval' })
 
     const adminInbox = process.env.ADMIN_EMAIL
-    const publicApi = process.env.API_PUBLIC_URL || process.env.FRONTEND_URL || 'http://localhost:3000'
+    const publicApi = process.env.API_PUBLIC_URL || 'http://localhost:3000'
+
+    await notifyAdmins(
+      'New payment to review',
+      `${req.user.name} submitted ${subscription.plan.name} (Rs ${subscription.plan.price_pkr}).`,
+      'payment',
+    )
+    await notifyUser(
+      user_id,
+      'Payment submitted',
+      `Your ${subscription.plan.name} receipt is waiting for review.`,
+      'payment',
+    )
 
     if (adminInbox) {
       await sendEmail(
@@ -109,28 +126,27 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
         `Plan: ${subscription.plan.name}\n` +
         `Amount: Rs. ${subscription.plan.price_pkr}\n` +
         `Method: ${payment_method}\n` +
-        `Transaction ID: ${transaction_id}\n\n` +
+        `Transaction ID: ${transaction_id}\n` +
+        `Screenshot: ${screenshotUrl}\n\n` +
         `Admin panel: ${publicApi}/admin`
       )
     }
 
-    return res.status(201).json({
-      success: true,
-      message: 'Payment submitted. It will be reviewed shortly.',
-      data: {
+    return ok(
+      res,
+      'Payment submitted. It will be reviewed shortly.',
+      {
         payment_id: payment.id,
         status: payment.status,
         transaction_id: payment.transaction_id,
         payment_method: payment.payment_method,
+        screenshot_url: payment.screenshot_url,
       },
-    })
+      201
+    )
   } catch (err) {
     console.error('Payment submit error:', err)
-    return res.status(500).json({
-      success: false,
-      message: 'Unable to submit payment',
-      data: null,
-    })
+    return fail(res, 500, 'Unable to submit payment')
   }
 })
 
@@ -144,27 +160,20 @@ router.get('/payments/my', protect, async (req, res) => {
 
     const formatted = payments.map((p) => ({
       id: p.id,
-      plan_name: p.plan.name,
+      plan_name: p.plan ? p.plan.name : null,
       amount_pkr: p.amount_pkr,
       payment_method: p.payment_method,
       transaction_id: p.transaction_id,
       status: p.status,
+      screenshot_url: p.screenshot_url,
       submitted_at: p.createdAt,
       approved_at: p.approved_at,
     }))
 
-    return res.status(200).json({
-      success: true,
-      message: 'Payment history fetched',
-      data: { payments: formatted },
-    })
+    return ok(res, 'Payment history fetched', { payments: formatted })
   } catch (err) {
     console.error('Get payments error:', err)
-    return res.status(500).json({
-      success: false,
-      message: 'Unable to load payments',
-      data: null,
-    })
+    return fail(res, 500, 'Unable to load payments')
   }
 })
 
@@ -177,20 +186,10 @@ router.patch('/admin/payments/:id/approve', protect, requireAdmin, async (req, r
       ],
     })
 
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Payment not found',
-        data: null,
-      })
-    }
+    if (!payment) return fail(res, 404, 'Payment not found')
 
     if (payment.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: `Payment is already ${payment.status}`,
-        data: null,
-      })
+      return fail(res, 400, `Payment is already ${payment.status}`)
     }
 
     await payment.update({
@@ -213,33 +212,33 @@ router.patch('/admin/payments/:id/approve', protect, requireAdmin, async (req, r
       { where: { id: payment.subscription_id } }
     )
 
-    await sendEmail(
-      payment.User.email,
-      'Your SLAM subscription is active',
-      `Hi ${payment.User.name},\n\n` +
-      `Your payment was approved. The ${payment.plan.name} plan is now active.\n\n` +
-      `Plan: ${payment.plan.name}\n` +
-      `Amount: Rs. ${payment.amount_pkr}\n` +
-      `Valid until: ${endDate.toDateString()}\n\n` +
-      `Open the SLAM app to use your plan.\n`
-    )
+    if (payment.User) {
+      await notifyUser(
+        payment.user_id,
+        'Payment approved',
+        `Your ${payment.plan.name} plan is now active.`,
+        'payment',
+      )
+      await sendEmail(
+        payment.User.email,
+        'Your SLAM subscription is active',
+        `Hi ${payment.User.name},\n\n` +
+        `Your payment was approved. The ${payment.plan.name} plan is now active.\n\n` +
+        `Plan: ${payment.plan.name}\n` +
+        `Amount: Rs. ${payment.amount_pkr}\n` +
+        `Valid until: ${endDate.toDateString()}\n\n` +
+        `Open the SLAM app to use your plan.\n`
+      )
+    }
 
-    return res.status(200).json({
-      success: true,
-      message: 'Payment approved and subscription activated',
-      data: {
-        payment_id: payment.id,
-        subscription_id: payment.subscription_id,
-        status: 'approved',
-      },
+    return ok(res, 'Payment approved and subscription activated', {
+      payment_id: payment.id,
+      subscription_id: payment.subscription_id,
+      status: 'approved',
     })
   } catch (err) {
     console.error('Approve payment error:', err)
-    return res.status(500).json({
-      success: false,
-      message: 'Unable to approve payment',
-      data: null,
-    })
+    return fail(res, 500, 'Unable to approve payment')
   }
 })
 
@@ -249,13 +248,7 @@ router.patch('/admin/payments/:id/reject', protect, requireAdmin, async (req, re
       include: [{ model: User }],
     })
 
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Payment not found',
-        data: null,
-      })
-    }
+    if (!payment) return fail(res, 404, 'Payment not found')
 
     await payment.update({ status: 'rejected' })
 
@@ -264,26 +257,29 @@ router.patch('/admin/payments/:id/reject', protect, requireAdmin, async (req, re
       { where: { id: payment.subscription_id } }
     )
 
-    await sendEmail(
-      payment.User.email,
-      'SLAM payment could not be verified',
-      `Hi ${payment.User.name},\n\n` +
-      `We could not verify the payment with transaction ID ${payment.transaction_id}.\n\n` +
-      `Check the ID and submit again, or contact support if this looks wrong.\n`
-    )
+    if (payment.User) {
+      await notifyUser(
+        payment.user_id,
+        'Payment rejected',
+        `We could not verify transaction ${payment.transaction_id}.`,
+        'payment',
+      )
+      await sendEmail(
+        payment.User.email,
+        'SLAM payment could not be verified',
+        `Hi ${payment.User.name},\n\n` +
+        `We could not verify the payment with transaction ID ${payment.transaction_id}.\n\n` +
+        `Check the ID and submit again, or contact support if this looks wrong.\n`
+      )
+    }
 
-    return res.status(200).json({
-      success: true,
-      message: 'Payment rejected',
-      data: { payment_id: payment.id, status: 'rejected' },
+    return ok(res, 'Payment rejected', {
+      payment_id: payment.id,
+      status: 'rejected',
     })
   } catch (err) {
     console.error('Reject payment error:', err)
-    return res.status(500).json({
-      success: false,
-      message: 'Unable to reject payment',
-      data: null,
-    })
+    return fail(res, 500, 'Unable to reject payment')
   }
 })
 
