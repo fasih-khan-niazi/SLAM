@@ -71,6 +71,7 @@ function publicUser(user) {
     email: user.email,
     phone: user.phone,
     role: user.role,
+    account_status: user.account_status || 'active',
   }
 }
 
@@ -168,6 +169,11 @@ router.post('/login', loginAttemptGuard, async (req, res) => {
       return fail(res, 401, 'Invalid email or password')
     }
 
+    const { isAccountBlocked, accountBlockMessage } = require('../utils/accountStatus')
+    if (isAccountBlocked(user)) {
+      return fail(res, 403, accountBlockMessage(user))
+    }
+
     clearFailedLogins(req)
     const subscription = await subscriptionPayload(user.id)
     const token = generateToken(user.id)
@@ -213,6 +219,9 @@ router.post('/forgot-password', forgotLimit, async (req, res) => {
     // Always return the same message to avoid account enumeration.
     const generic = 'If that email exists, reset instructions were sent.'
     if (!user) return ok(res, generic, {})
+
+    const { isAccountBlocked } = require('../utils/accountStatus')
+    if (isAccountBlocked(user)) return ok(res, generic, {})
 
     const resetToken = jwt.sign(
       { id: user.id, purpose: 'password_reset', nonce: crypto.randomBytes(8).toString('hex') },

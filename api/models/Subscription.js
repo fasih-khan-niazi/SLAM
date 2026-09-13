@@ -21,7 +21,8 @@ const Subscription = sequelize.define('Subscription', {
       'pending_approval',
       'active',
       'expired',
-      'cancelled'
+      'cancelled',
+      'paused'
     ),
     defaultValue: 'pending_payment',
   },

@@ -100,6 +100,20 @@ async function rollUsagePeriodIfExpired(subscription, transaction) {
  * Locates always increment that row so reinstall/login restores the same remaining.
  */
 async function ensureActiveSubscription(userId, transaction) {
+  const { User } = require('../models')
+  const { isAccountBlocked } = require('./accountStatus')
+  const user = await User.findByPk(userId, transaction ? { transaction } : undefined)
+  if (user && isAccountBlocked(user)) {
+    const paused = await Subscription.findOne({
+      where: { user_id: userId, status: 'paused' },
+      include: [{ model: SubscriptionPlan, as: 'plan' }],
+      order: [['createdAt', 'DESC']],
+      ...(transaction ? { transaction } : {}),
+    })
+    if (paused) return paused
+    throw new Error('Account is suspended or deactivated')
+  }
+
   const findOpts = {
     where: { user_id: userId, status: 'active' },
     order: [['createdAt', 'DESC']],
