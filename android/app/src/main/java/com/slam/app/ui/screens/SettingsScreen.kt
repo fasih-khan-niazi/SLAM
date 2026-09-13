@@ -49,6 +49,7 @@ fun SettingsScreen(
 
     var preferBattery by remember { mutableStateOf(false) }
     var displayName by remember { mutableStateOf("") }
+    var planName by remember { mutableStateOf("Free") }
     var confirmSignOut by remember { mutableStateOf(false) }
     val appearance by uiPreferences.appearance.collectAsStateWithLifecycle(AppearanceMode.LIGHT)
     val hapticsEnabled by uiPreferences.hapticsEnabled.collectAsStateWithLifecycle(true)
@@ -58,6 +59,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         preferBattery = session.preferBattery.first()
         displayName = session.displayName.first()
+        planName = session.cachedPlanName()
     }
 
     Column(
@@ -198,6 +200,27 @@ fun SettingsScreen(
                     text = "Show onboarding",
                     style = SlamButtonStyle.SECONDARY,
                     onClick = onShowOnboarding,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        SlamCard {
+            Column(Modifier.padding(20.dp)) {
+                Text(
+                    "Current plan",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    planName.ifBlank { "Free" },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "To change your plan, open the SLAM web portal on a computer or phone browser.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

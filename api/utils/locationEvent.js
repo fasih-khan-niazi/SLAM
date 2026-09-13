@@ -92,7 +92,7 @@ function validateLocationEvent(body = {}) {
   }
 }
 
-function usagePayload(event, requestsUsed, monthlyLimit, idempotent) {
+function usagePayload(event, requestsUsed, monthlyLimit, idempotent, planMeta = {}) {
   return {
     event,
     idempotent,
@@ -101,6 +101,10 @@ function usagePayload(event, requestsUsed, monthlyLimit, idempotent) {
       ? null
       : Math.max(0, monthlyLimit - requestsUsed),
     limit_reached: monthlyLimit !== null && requestsUsed >= monthlyLimit,
+    plan_name: planMeta.plan_name || 'Free',
+    monthly_limit: monthlyLimit,
+    subscription_id: planMeta.subscription_id || null,
+    status: planMeta.status || 'active',
   }
 }
 

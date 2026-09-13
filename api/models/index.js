@@ -195,17 +195,24 @@ async function seedAdmin() {
   const password = process.env.ADMIN_PASSWORD
   if (!email || !password) return
 
-  const existing = await User.findOne({ where: { email } })
-  if (existing) return
+  let user = await User.findOne({ where: { email } })
+  if (!user) {
+    user = await User.create({
+      name: 'Administrator',
+      email,
+      password_hash: await bcrypt.hash(password, 10),
+      phone: '03000000000',
+      role: 'admin',
+    })
+    console.log('Admin account seeded')
+  }
 
-  await User.create({
-    name: 'Administrator',
-    email,
-    password_hash: await bcrypt.hash(password, 10),
-    phone: '03000000000',
-    role: 'admin',
-  })
-  console.log('Admin account seeded')
+  try {
+    const { ensureActiveSubscription } = require('../utils/subscription')
+    await ensureActiveSubscription(user.id)
+  } catch (err) {
+    console.error('Admin Free plan ensure failed:', err.message)
+  }
 }
 
 async function ensureUserPinColumns() {

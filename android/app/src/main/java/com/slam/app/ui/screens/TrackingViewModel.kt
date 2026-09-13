@@ -124,8 +124,9 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
                     val data = response?.body()?.data
                     if (response?.isSuccessful == true && data != null) {
                         session.cacheUsage(data.subscription)
-                        plan = data.subscription?.planName ?: plan
-                        limit = data.subscription?.monthlyLimit ?: limit
+                        val live = data.subscription?.forLiveUsage()
+                        plan = live?.planName ?: plan
+                        limit = live?.monthlyLimit ?: limit
                     }
                 }
                 runCatching { withContext(Dispatchers.IO) { loadFromCache() } }

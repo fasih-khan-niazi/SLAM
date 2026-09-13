@@ -39,6 +39,17 @@ async function getFreePlan(transaction) {
   })
 }
 
+async function countLogsSince(userId, since, transaction) {
+  const where = { user_id: userId }
+  if (since) {
+    where.createdAt = { [Op.gte]: since }
+  }
+  return LocationLog.count({
+    where,
+    ...(transaction ? { transaction } : {}),
+  })
+}
+
 async function activateFreePlan(userId, transaction) {
   const freePlan = await getFreePlan(transaction)
   if (!freePlan) {
@@ -46,17 +57,24 @@ async function activateFreePlan(userId, transaction) {
   }
 
   const today = new Date()
+  // Backfill from recent logs so reinstall / missing Free rows keep server usage.
+  const lookback = addDays(today, -30)
+  const used = await countLogsSince(userId, lookback, transaction)
+  const capped = freePlan.monthly_limit == null
+    ? used
+    : Math.min(used, freePlan.monthly_limit)
+
   return Subscription.create({
     user_id: userId,
     plan_id: freePlan.id,
     status: 'active',
-    requests_used: 0,
+    requests_used: capped,
     start_date: today,
     end_date: addDays(today, 30),
   }, transaction ? { transaction } : undefined)
 }
 
-async function rollUsagePeriodIfExpired(subscription) {
+async function rollUsagePeriodIfExpired(subscription, transaction) {
   if (!subscription || subscription.status !== 'active' || !subscription.plan) {
     return subscription
   }
@@ -73,8 +91,35 @@ async function rollUsagePeriodIfExpired(subscription) {
     requests_used: 0,
     start_date: today,
     end_date: addDays(today, 30),
-  })
+  }, transaction ? { transaction } : undefined)
   return subscription
+}
+
+/**
+ * Every account must have exactly one live active subscription row.
+ * Locates always increment that row so reinstall/login restores the same remaining.
+ */
+async function ensureActiveSubscription(userId, transaction) {
+  const findOpts = {
+    where: { user_id: userId, status: 'active' },
+    order: [['createdAt', 'DESC']],
+    ...(transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {}),
+  }
+
+  let subscription = await Subscription.findOne(findOpts)
+
+  if (!subscription) {
+    subscription = await activateFreePlan(userId, transaction)
+  }
+
+  if (!subscription.plan) {
+    subscription = await Subscription.findByPk(subscription.id, {
+      include: [{ model: SubscriptionPlan, as: 'plan' }],
+      ...(transaction ? { transaction } : {}),
+    })
+  }
+
+  return rollUsagePeriodIfExpired(subscription, transaction)
 }
 
 async function getCurrentSubscription(userId) {
@@ -89,48 +134,58 @@ async function getCurrentSubscription(userId) {
   return rollUsagePeriodIfExpired(current)
 }
 
+async function getPendingUpgrade(userId) {
+  return Subscription.findOne({
+    where: {
+      user_id: userId,
+      status: ['pending_payment', 'pending_approval'],
+    },
+    include: [{ model: SubscriptionPlan, as: 'plan' }],
+    order: [['createdAt', 'DESC']],
+  })
+}
+
+/**
+ * Entitlements are always the active plan at the top level.
+ * A paid upgrade in flight is nested as pending_upgrade so clients never
+ * treat Basic/Premium limits as live before admin approval.
+ */
+async function buildSubscriptionPayload(userId) {
+  const activeInfo = await getActivePlanInfo(userId)
+  const payload = formatSubscription(
+    activeInfo.subscription,
+    activeInfo.plan,
+    activeInfo.requests_used
+  )
+
+  const pending = await getPendingUpgrade(userId)
+  if (pending) {
+    payload.pending_upgrade = formatSubscription(pending, pending.plan, pending.requests_used)
+  }
+
+  return payload
+}
+
 async function monthLocationCount(userId) {
   const startOfMonth = new Date()
   startOfMonth.setDate(1)
   startOfMonth.setHours(0, 0, 0, 0)
-
-  return LocationLog.count({
-    where: {
-      user_id: userId,
-      createdAt: { [Op.gte]: startOfMonth },
-    },
-  })
+  return countLogsSince(userId, startOfMonth)
 }
 
-async function getActivePlanInfo(userId) {
-  const subscription = await Subscription.findOne({
-    where: { user_id: userId, status: 'active' },
-    include: [{ model: SubscriptionPlan, as: 'plan' }],
-    order: [['createdAt', 'DESC']],
+async function getActivePlanInfo(userId, transaction) {
+  const subscription = await ensureActiveSubscription(userId, transaction)
+  const plan = subscription.plan || await SubscriptionPlan.findByPk(subscription.plan_id, {
+    ...(transaction ? { transaction } : {}),
   })
 
-  if (subscription) {
-    const current = await rollUsagePeriodIfExpired(subscription)
-    return {
-      subscription: current,
-      plan: current.plan,
-      monthly_limit: current.plan.monthly_limit,
-      requests_used: current.requests_used,
-      has_history: current.plan.has_history,
-      plan_name: current.plan.name,
-    }
-  }
-
-  const freePlan = await getFreePlan()
-  const requests_used = await monthLocationCount(userId)
-
   return {
-    subscription: null,
-    plan: freePlan,
-    monthly_limit: freePlan ? freePlan.monthly_limit : 5,
-    requests_used,
-    has_history: false,
-    plan_name: 'Free',
+    subscription,
+    plan,
+    monthly_limit: plan ? plan.monthly_limit : 5,
+    requests_used: subscription.requests_used,
+    has_history: plan ? Boolean(plan.has_history) : false,
+    plan_name: plan ? plan.name : 'Free',
   }
 }
 
@@ -144,12 +199,48 @@ async function cancelOtherActiveSubscriptions(userId, keepId, transaction) {
   )
 }
 
+/**
+ * Force an account onto Free: cancel paid/pending rows and sync requests_used from logs.
+ */
+async function resetUserToFree(userId, transaction) {
+  const freePlan = await getFreePlan(transaction)
+  if (!freePlan) throw new Error('Free plan is not seeded')
+
+  await Subscription.update(
+    { status: 'cancelled' },
+    {
+      where: {
+        user_id: userId,
+        status: ['active', 'pending_payment', 'pending_approval'],
+      },
+      ...(transaction ? { transaction } : {}),
+    }
+  )
+
+  const today = new Date()
+  // Explicit admin/QA reset starts a clean Free period.
+  return Subscription.create({
+    user_id: userId,
+    plan_id: freePlan.id,
+    status: 'active',
+    requests_used: 0,
+    start_date: today,
+    end_date: addDays(today, 30),
+  }, transaction ? { transaction } : undefined)
+}
+
 module.exports = {
   addDays,
   formatSubscription,
   activateFreePlan,
   getFreePlan,
   getCurrentSubscription,
+  getPendingUpgrade,
   getActivePlanInfo,
+  ensureActiveSubscription,
+  buildSubscriptionPayload,
   cancelOtherActiveSubscriptions,
+  resetUserToFree,
+  countLogsSince,
+  monthLocationCount,
 }

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node app.js",
     "dev": "node --watch app.js",
-    "test": "node --test"
+    "test": "node --test",
+    "reset-user-free": "node scripts/reset-user-to-free.js"
   },
   "engines": {
     "node": ">=18"

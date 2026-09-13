@@ -1,18 +1,22 @@
 const express = require('express')
-const { Op } = require('sequelize')
 const { protect } = require('../middleware/auth')
 const {
   sequelize,
-  User,
-  Subscription,
-  SubscriptionPlan,
   LocationLog,
 } = require('../models')
 const { ok, fail } = require('../utils/http')
-const { addDays, getActivePlanInfo, getFreePlan } = require('../utils/subscription')
+const { ensureActiveSubscription, getActivePlanInfo } = require('../utils/subscription')
 const { validateLocationEvent, usagePayload } = require('../utils/locationEvent')
 
 const router = express.Router()
+
+function planMeta(subscription, plan) {
+  return {
+    plan_name: plan ? plan.name : 'Free',
+    subscription_id: subscription ? subscription.id : null,
+    status: subscription ? subscription.status : 'active',
+  }
+}
 
 router.get('/location/can-request', protect, async (req, res) => {
   try {
@@ -24,6 +28,7 @@ router.get('/location/can-request', protect, async (req, res) => {
         requests_used: info.requests_used,
         requests_remaining: null,
         plan_name: info.plan_name,
+        monthly_limit: null,
       })
     }
 
@@ -34,6 +39,7 @@ router.get('/location/can-request', protect, async (req, res) => {
       requests_used: info.requests_used,
       requests_remaining: Math.max(0, info.monthly_limit - info.requests_used),
       plan_name: info.plan_name,
+      monthly_limit: info.monthly_limit,
     })
   } catch (err) {
     console.error('Can-request error:', err)
@@ -50,42 +56,10 @@ router.post('/location/log', protect, async (req, res) => {
   try {
     const user_id = req.user.id
     const result = await sequelize.transaction(async (transaction) => {
-      // The user lock also serializes legacy accounts without a subscription.
-      // Active subscriptions receive their own required quota-row lock.
-      await User.findByPk(user_id, {
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      })
-
-      const subscription = await Subscription.findOne({
-        where: { user_id, status: 'active' },
-        order: [['createdAt', 'DESC']],
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      })
-      const plan = subscription
-        ? await SubscriptionPlan.findByPk(subscription.plan_id, { transaction })
-        : await getFreePlan(transaction)
+      const subscription = await ensureActiveSubscription(user_id, transaction)
+      const plan = subscription.plan
       const monthlyLimit = plan ? plan.monthly_limit : 5
-      const legacyPeriodStart = new Date()
-      legacyPeriodStart.setDate(1)
-      legacyPeriodStart.setHours(0, 0, 0, 0)
-      const legacyUsageWhere = {
-        user_id,
-        createdAt: { [Op.gte]: legacyPeriodStart },
-      }
-
-      if (subscription && monthlyLimit !== null && subscription.end_date) {
-        const end = new Date(subscription.end_date)
-        if (!Number.isNaN(end.getTime()) && Date.now() > end.getTime()) {
-          const today = new Date()
-          await subscription.update({
-            requests_used: 0,
-            start_date: today,
-            end_date: addDays(today, 30),
-          }, { transaction })
-        }
-      }
+      const meta = planMeta(subscription, plan)
 
       const existing = await LocationLog.findOne({
         where: { event_id: validated.value.event_id },
@@ -98,15 +72,10 @@ router.post('/location/log', protect, async (req, res) => {
           throw conflict
         }
 
-        const requestsUsed = subscription
-          ? subscription.requests_used
-          : await LocationLog.count({ where: legacyUsageWhere, transaction })
-        return usagePayload(existing, requestsUsed, monthlyLimit, true)
+        return usagePayload(existing, subscription.requests_used, monthlyLimit, true, meta)
       }
 
-      const requestsUsed = subscription
-        ? subscription.requests_used
-        : await LocationLog.count({ where: legacyUsageWhere, transaction })
+      const requestsUsed = subscription.requests_used
       if (monthlyLimit !== null && requestsUsed >= monthlyLimit) {
         const limit = new Error('Plan-period limit reached. Upgrade to continue.')
         limit.status = 403
@@ -120,14 +89,12 @@ router.post('/location/log', protect, async (req, res) => {
       }, { transaction })
       const nextRequestsUsed = requestsUsed + 1
 
-      if (subscription) {
-        await subscription.update(
-          { requests_used: nextRequestsUsed },
-          { transaction }
-        )
-      }
+      await subscription.update(
+        { requests_used: nextRequestsUsed },
+        { transaction }
+      )
 
-      return usagePayload(event, nextRequestsUsed, monthlyLimit, false)
+      return usagePayload(event, nextRequestsUsed, monthlyLimit, false, meta)
     })
 
     return ok(

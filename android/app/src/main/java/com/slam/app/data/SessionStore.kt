@@ -139,35 +139,35 @@ class SessionStore(private val context: Context) {
     }
 
     suspend fun cacheUsage(subscription: SubscriptionInfo?) {
-        val limit = subscription?.monthlyLimit
+        val live = subscription?.forLiveUsage()
+        val limit = live?.monthlyLimit
         val accountId = accountId()
-        val start = parseTime(subscription?.startDate) ?: System.currentTimeMillis()
+        val start = parseTime(live?.startDate) ?: System.currentTimeMillis()
         val pendingCount = runCatching {
             SlamDatabase.get(context).eventLedger().pending(accountId).size
         }.getOrDefault(0)
-        val localRemaining = runCatching { cachedRemaining.first() }.getOrNull()
         context.dataStore.edit {
             it[longPreferencesKey(scoped("period_anchor", accountId))] = start
-            it[stringPreferencesKey(scoped("period_end", accountId))] = subscription?.endDate ?: ""
-            if (limit == null && subscription?.planName != "Free") {
+            it[stringPreferencesKey(scoped("period_end", accountId))] = live?.endDate ?: ""
+            if (limit == null && live?.planName != "Free") {
                 it[intPreferencesKey(scoped("monthly_limit", accountId))] = -1
                 it[intPreferencesKey(scoped("requests_remaining", accountId))] = -1
             } else {
                 val cap = limit ?: 5
                 it[intPreferencesKey(scoped("monthly_limit", accountId))] = cap
-                val serverRemaining = subscription?.requestsRemaining ?: cap
-                val merged = if (pendingCount > 0 && localRemaining != null && localRemaining != Int.MAX_VALUE) {
-                    minOf(serverRemaining, localRemaining)
+                val serverRemaining = live?.requestsRemaining ?: cap
+                // Server is source of truth. Only reserve local slots for unsynced outbox events.
+                val adjusted = if (pendingCount > 0 && serverRemaining != Int.MAX_VALUE) {
+                    (serverRemaining - pendingCount).coerceAtLeast(0)
                 } else {
                     serverRemaining
                 }
-                it[intPreferencesKey(scoped("requests_remaining", accountId))] = merged
+                it[intPreferencesKey(scoped("requests_remaining", accountId))] = adjusted
             }
             it[intPreferencesKey(scoped("max_contacts", accountId))] =
-                (subscription?.maxContacts ?: 1).coerceAtLeast(1)
+                (live?.maxContacts ?: 1).coerceAtLeast(1)
             it[stringPreferencesKey(scoped("plan_name", accountId))] =
-                subscription?.planName ?: "Free"
-            // Keep period_start aligned so remainingForPeriod trusts the cached remaining.
+                live?.planName ?: "Free"
             it[longPreferencesKey(scoped("period_start", accountId))] = periodStart(it)
         }
     }
@@ -183,27 +183,46 @@ class SessionStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             val limitKey = accountInt("monthly_limit")
             val remainingKey = accountInt("requests_remaining")
-            val periodKey = accountLong("period_start")
             val limit = prefs[limitKey] ?: 5
             if (limit < 0) return@edit
-            val currentStart = periodStart(prefs)
-            if (prefs[periodKey] != currentStart) prefs[remainingKey] = limit
-            prefs[periodKey] = currentStart
+            // Never invent a full refill locally; only decrement the cached server value.
             prefs[remainingKey] = ((prefs[remainingKey] ?: limit) - 1).coerceAtLeast(0)
+            prefs[accountLong("period_start")] = periodStart(prefs)
         }
     }
 
     suspend fun applyServerRemaining(remaining: Int?) {
-        if (remaining == null) {
-            context.dataStore.edit {
-                it[accountInt("monthly_limit")] = -1
-                it[accountInt("requests_remaining")] = -1
-                it[accountLong("period_start")] = periodStart(it)
-            }
-            return
-        }
+        applyServerUsage(remaining = remaining, planName = null, monthlyLimit = null)
+    }
+
+    suspend fun applyServerUsage(
+        remaining: Int?,
+        planName: String?,
+        monthlyLimit: Int?,
+    ) {
         context.dataStore.edit {
-            it[accountInt("requests_remaining")] = remaining
+            if (planName != null) {
+                it[stringPreferencesKey(scoped("plan_name"))] = planName
+            }
+            when {
+                remaining == null && (monthlyLimit == null || monthlyLimit < 0) &&
+                    planName != null && planName != "Free" -> {
+                    it[accountInt("monthly_limit")] = -1
+                    it[accountInt("requests_remaining")] = -1
+                }
+                remaining == null && monthlyLimit == null -> {
+                    it[accountInt("monthly_limit")] = -1
+                    it[accountInt("requests_remaining")] = -1
+                }
+                else -> {
+                    if (monthlyLimit != null) {
+                        it[accountInt("monthly_limit")] = monthlyLimit
+                    }
+                    if (remaining != null) {
+                        it[accountInt("requests_remaining")] = remaining
+                    }
+                }
+            }
             it[accountLong("period_start")] = periodStart(it)
         }
     }
@@ -218,11 +237,18 @@ class SessionStore(private val context: Context) {
     private fun remainingForPeriod(prefs: Preferences): Int {
         val limit = prefs[accountInt("monthly_limit")] ?: 5
         if (limit < 0) return Int.MAX_VALUE
+        val endIso = prefs[stringPreferencesKey(scoped("period_end"))]
+        val endMs = parseTime(endIso)
+        if (endMs != null) {
+            // Trust the last server snapshot until the server period ends.
+            // Never refill to the full limit from a local calendar rollover alone.
+            return prefs[accountInt("requests_remaining")] ?: limit
+        }
         val currentStart = periodStart(prefs)
         return if (prefs[accountLong("period_start")] == currentStart) {
             prefs[accountInt("requests_remaining")] ?: limit
         } else {
-            limit
+            prefs[accountInt("requests_remaining")] ?: limit
         }
     }
 

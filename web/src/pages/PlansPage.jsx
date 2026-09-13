@@ -30,6 +30,17 @@ export function PlansPage() {
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Unable to load plans'))
   }, [])
 
+  const pending = subscription?.pending_upgrade
+    || (subscription && ['pending_payment', 'pending_approval'].includes(subscription.status) ? subscription : null)
+  const active = subscription?.pending_upgrade
+    ? subscription
+    : (subscription?.active_plan || (
+      subscription && ['pending_payment', 'pending_approval'].includes(subscription.status)
+        ? null
+        : subscription
+    ))
+  const activeName = active?.plan_name
+
   async function choose(plan) {
     if (!user) {
       navigate('/login', { state: { from: '/plans' } })
@@ -59,10 +70,19 @@ export function PlansPage() {
       <h1>Plans</h1>
       <p className="lede">
         Start on Free. Upgrade when you need more locates or more trusted numbers on the phone app.
+        Your live locate quota only changes after an admin approves payment.
       </p>
       {!paymentsEnabled || maintenance ? (
         <div style={{ marginTop: 16 }}>
           <Banner title="Paid upgrades paused" message="Free still works. Payments will open again when service resumes." />
+        </div>
+      ) : null}
+      {pending ? (
+        <div style={{ marginTop: 16 }}>
+          <Banner
+            title={`${pending.plan_name} payment in progress`}
+            message="Your current plan and locate quota stay the same until an admin approves the receipt."
+          />
         </div>
       ) : null}
 
@@ -75,7 +95,8 @@ export function PlansPage() {
           </>
         ) : (
           plans.map((plan) => {
-            const current = subscription?.plan_name === plan.name && subscription?.status === 'active'
+            const current = activeName === plan.name
+            const isPendingPlan = pending?.plan_name === plan.name
             return (
               <Card key={plan.id}>
                 <p className="eyebrow">{plan.price_pkr === 0 ? 'Included' : 'Paid plan'}</p>
@@ -95,7 +116,15 @@ export function PlansPage() {
                     <StatusChip tone="success">Current plan</StatusChip>
                   </div>
                 ) : null}
-                {user && plan.price_pkr > 0 && !current && paymentsEnabled && !maintenance ? (
+                {isPendingPlan ? (
+                  <div style={{ marginTop: 16 }}>
+                    <StatusChip tone="warning">Payment in progress</StatusChip>
+                    <div style={{ marginTop: 12 }}>
+                      <Button onClick={() => navigate('/payments')} block>Continue payment</Button>
+                    </div>
+                  </div>
+                ) : null}
+                {user && plan.price_pkr > 0 && !current && !isPendingPlan && !pending && paymentsEnabled && !maintenance ? (
                   <div style={{ marginTop: 16 }}>
                     <Button onClick={() => choose(plan)} loading={busyId === plan.id} block>
                       Choose {plan.name}

@@ -72,9 +72,13 @@ export function HomePage() {
   }
 
   const firstName = user?.name?.split(' ')[0] || ''
-  const pending = subscription && ['pending_payment', 'pending_approval'].includes(subscription.status)
-  const active = subscription?.active_plan || subscription
-  const chip = statusChip(subscription?.status || active?.status)
+  // Prefer nested pending_upgrade (new API). Fall back to old top-level pending shape.
+  const pending = subscription?.pending_upgrade
+    || (subscription && ['pending_payment', 'pending_approval'].includes(subscription.status) ? subscription : null)
+  const active = subscription?.pending_upgrade
+    ? subscription
+    : (subscription?.active_plan || subscription)
+  const chip = statusChip(active?.status || 'active')
 
   async function onChangePassword(event) {
     event.preventDefault()
@@ -123,7 +127,8 @@ export function HomePage() {
             <p className="lede">{remainingCopy(active || subscription)}</p>
             {pending ? (
               <p style={{ marginTop: 16 }}>
-                <Link to="/payments">Finish payment for {subscription.plan_name}</Link>
+                Upgrade to <strong>{pending.plan_name}</strong> is in progress.{' '}
+                <Link to="/payments">Continue on Payments</Link>
               </p>
             ) : null}
           </Card>
