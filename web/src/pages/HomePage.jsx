@@ -37,9 +37,13 @@ function statusChip(status) {
   return { tone: 'neutral', label: status || 'Unknown' }
 }
 
+function pendingCtaLabel(status) {
+  if (status === 'pending_approval') return 'Check payment status'
+  return 'Continue to payment'
+}
+
 export function HomePage() {
-  const { token, user, subscription, ready, logout, changePassword, refresh } = useAuth()
-  const [confirmOut, setConfirmOut] = useState(false)
+  const { token, user, subscription, ready, changePassword, refresh } = useAuth()
   const [notes, setNotes] = useState(null)
   const [syncError, setSyncError] = useState(null)
   const [passwordOpen, setPasswordOpen] = useState(false)
@@ -48,6 +52,7 @@ export function HomePage() {
   const [passwordBusy, setPasswordBusy] = useState(false)
   const [passwordError, setPasswordError] = useState(null)
   const [passwordOk, setPasswordOk] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
   const strength = useMemo(() => scorePassword(newPassword), [newPassword])
 
   useEffect(() => {
@@ -107,7 +112,25 @@ export function HomePage() {
           <h1>Hello{firstName ? `, ${firstName}` : ''}</h1>
           <p className="lede">Account status for your SLAM plan and payments.</p>
         </div>
-        <Button variant="secondary" onClick={() => refresh().catch(() => setSyncError('Could not refresh account.'))}>
+        <Button
+          variant="secondary"
+          loading={refreshing}
+          onClick={async () => {
+            setRefreshing(true)
+            setSyncError(null)
+            try {
+              await refresh()
+              if (token) {
+                const res = await listNotifications(token)
+                setNotes(res.data.notifications || [])
+              }
+            } catch {
+              setSyncError('Could not refresh account.')
+            } finally {
+              setRefreshing(false)
+            }
+          }}
+        >
           Refresh
         </Button>
       </div>
@@ -128,7 +151,7 @@ export function HomePage() {
             {pending ? (
               <p style={{ marginTop: 16 }}>
                 Upgrade to <strong>{pending.plan_name}</strong> is in progress.{' '}
-                <Link to="/payments">Continue on Payments</Link>
+                <Link to="/payments">{pendingCtaLabel(pending.status)}</Link>
               </p>
             ) : null}
           </Card>
@@ -182,28 +205,12 @@ export function HomePage() {
           <p className="lede">{user?.email}</p>
           <div style={{ marginTop: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <Button variant="secondary" onClick={() => setPasswordOpen(true)}>Change password</Button>
-            <Button variant="ghost" onClick={() => setConfirmOut(true)}>Sign out</Button>
           </div>
           {formatDate(subscription?.end_date) ? (
             <p className="muted" style={{ marginTop: 12 }}>Period ends {formatDate(subscription.end_date)}</p>
           ) : null}
         </Card>
       </div>
-
-      {confirmOut ? (
-        <Modal
-          title="Sign out?"
-          message="SMS tracking on the phone keeps working after you sign out of the portal."
-          confirmLabel="Sign out"
-          cancelLabel="Stay signed in"
-          danger
-          onConfirm={() => {
-            setConfirmOut(false)
-            logout()
-          }}
-          onDismiss={() => setConfirmOut(false)}
-        />
-      ) : null}
 
       {passwordOpen ? (
         <Modal

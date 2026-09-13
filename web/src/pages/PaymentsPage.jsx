@@ -187,7 +187,7 @@ function PaymentsContent() {
               Same account number is used for EasyPaisa and JazzCash.
             </p>
 
-            {paymentsEnabled && !maintenance ? (
+            {paymentsEnabled && !maintenance && pending?.status !== 'pending_approval' ? (
               <form className="stack-lg" style={{ marginTop: 24 }} onSubmit={onSubmit}>
                 <Field
                   id="txn"
@@ -209,6 +209,14 @@ function PaymentsContent() {
                 </div>
                 <Button type="submit" loading={loading} block>Submit for approval</Button>
               </form>
+            ) : null}
+            {pending?.status === 'pending_approval' ? (
+              <div style={{ marginTop: 20 }}>
+                <Banner
+                  title="Under admin review"
+                  message="Your receipt was submitted. You will get a portal notification when it is approved or rejected."
+                />
+              </div>
             ) : null}
           </Card>
         ) : (

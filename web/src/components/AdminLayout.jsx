@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { Logo } from './Logo'
 import { Button } from './Button'
+import { Modal } from './Modal'
+import { SignOutIcon, ThemeIcon } from './Icons'
 
 const NAV = [
   { to: '/admin', end: true, label: 'Dashboard' },
@@ -17,6 +20,7 @@ const NAV = [
 export function AdminLayout() {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const [confirmOut, setConfirmOut] = useState(false)
 
   return (
     <div className="admin-shell">
@@ -44,15 +48,38 @@ export function AdminLayout() {
           <p className="muted" style={{ margin: '0 0 8px', fontSize: '0.8rem' }}>
             {user?.email}
           </p>
-          <Button variant="ghost" onClick={toggleTheme}>
-            {theme === 'dark' ? 'Light' : 'Dark'}
+          <Button variant="secondary" onClick={toggleTheme}>
+            <span className="btn-with-icon">
+              <ThemeIcon dark={theme === 'dark'} />
+              {theme === 'dark' ? 'Light' : 'Dark'}
+            </span>
           </Button>
-          <Button variant="ghost" onClick={logout}>Sign out</Button>
+          <Button variant="secondary" onClick={() => setConfirmOut(true)}>
+            <span className="btn-with-icon">
+              <SignOutIcon />
+              Sign out
+            </span>
+          </Button>
         </div>
       </aside>
       <div className="admin-main">
         <Outlet />
       </div>
+
+      {confirmOut ? (
+        <Modal
+          title="Sign out?"
+          message="You will leave the operator console. SMS tracking on phones is not affected."
+          confirmLabel="Sign out"
+          cancelLabel="Stay signed in"
+          danger
+          onConfirm={() => {
+            setConfirmOut(false)
+            logout()
+          }}
+          onDismiss={() => setConfirmOut(false)}
+        />
+      ) : null}
     </div>
   )
 }
