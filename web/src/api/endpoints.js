@@ -16,8 +16,24 @@ export function loginAccount(payload) {
   return api('/api/auth/login', { method: 'POST', body: payload })
 }
 
+export function logoutAccount(token) {
+  return api('/api/auth/logout', { method: 'POST', token })
+}
+
 export function getMe(token) {
   return api('/api/auth/me', { token })
+}
+
+export function requestPasswordReset(email) {
+  return api('/api/auth/forgot-password', { method: 'POST', body: { email } })
+}
+
+export function resetPassword(payload) {
+  return api('/api/auth/reset-password', { method: 'POST', body: payload })
+}
+
+export function changePassword(token, payload) {
+  return api('/api/auth/change-password', { method: 'POST', body: payload, token })
 }
 
 export function getSubscription(token) {

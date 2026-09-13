@@ -1,10 +1,30 @@
 const jwt = require('jsonwebtoken')
 const { User } = require('../models')
 
+function readCookieToken(req) {
+  const header = req.headers.cookie || ''
+  const parts = header.split(';')
+  for (const part of parts) {
+    const [rawKey, ...rest] = part.trim().split('=')
+    if (rawKey === 'slam_token') {
+      return decodeURIComponent(rest.join('=') || '')
+    }
+  }
+  return ''
+}
+
+function extractToken(req) {
+  const authHeader = req.headers.authorization
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1]
+  }
+  return readCookieToken(req)
+}
+
 const protect = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = extractToken(req)
+    if (!token) {
       return res.status(401).json({
         success: false,
         message: 'No token provided. Please sign in first.',
@@ -12,7 +32,6 @@ const protect = async (req, res, next) => {
       })
     }
 
-    const token = authHeader.split(' ')[1]
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
     const user = await User.findByPk(decoded.id)
 
@@ -46,4 +65,4 @@ const requireAdmin = (req, res, next) => {
   next()
 }
 
-module.exports = { protect, requireAdmin }
+module.exports = { protect, requireAdmin, extractToken, readCookieToken }

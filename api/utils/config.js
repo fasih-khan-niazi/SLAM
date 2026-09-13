@@ -37,6 +37,8 @@ function publicFields(row) {
     email_enabled: Boolean(row.email_enabled),
     emergency_enabled: row.emergency_enabled !== false,
     emergency_interval_hours: clampInt(row.emergency_interval_hours, 1, 1, 24),
+    easypaisa_account: process.env.EASYPAY_ACCOUNT || process.env.PAYMENT_ACCOUNT || '03300490019',
+    jazzcash_account: process.env.JAZZCASH_ACCOUNT || process.env.PAYMENT_ACCOUNT || '03300490019',
   }
 }
 
