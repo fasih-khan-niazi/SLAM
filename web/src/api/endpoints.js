@@ -111,20 +111,29 @@ export function adminUpdateConfig(token, body) {
   return api('/api/admin/config', { method: 'PATCH', body, token })
 }
 
-export function adminListUsers(token, { q, role } = {}) {
+export function adminListUsers(token, { q, role, accountStatus } = {}) {
   const params = new URLSearchParams()
   if (q) params.set('q', q)
   if (role) params.set('role', role)
+  if (accountStatus) params.set('account_status', accountStatus)
   const qs = params.toString()
   return api(`/api/admin/users${qs ? `?${qs}` : ''}`, { token })
 }
 
-export function adminUpdateUser(token, id, body) {
-  return api(`/api/admin/users/${id}`, { method: 'PATCH', body, token })
+export function adminSuspendUser(token, id) {
+  return api(`/api/admin/users/${id}/suspend`, { method: 'POST', token })
 }
 
-export function adminDeleteUser(token, id) {
-  return api(`/api/admin/users/${id}`, { method: 'DELETE', token })
+export function adminUnsuspendUser(token, id) {
+  return api(`/api/admin/users/${id}/unsuspend`, { method: 'POST', token })
+}
+
+export function adminDeactivateUser(token, id) {
+  return api(`/api/admin/users/${id}/deactivate`, { method: 'POST', token })
+}
+
+export function adminReactivateUser(token, id) {
+  return api(`/api/admin/users/${id}/reactivate`, { method: 'POST', token })
 }
 
 export function adminListSubscriptions(token, { status, userId } = {}) {

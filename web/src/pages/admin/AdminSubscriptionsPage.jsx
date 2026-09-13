@@ -8,7 +8,7 @@ import { Modal } from '../../components/Modal'
 import { Skeleton } from '../../components/Skeleton'
 import { StatusChip } from '../../components/StatusChip'
 
-const STATUSES = ['', 'active', 'pending_payment', 'pending_approval', 'expired', 'cancelled']
+const STATUSES = ['', 'active', 'paused', 'pending_payment', 'pending_approval', 'expired', 'cancelled']
 
 export function AdminSubscriptionsPage() {
   const { token } = useAuth()

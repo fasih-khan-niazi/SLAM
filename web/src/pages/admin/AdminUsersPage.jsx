@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { adminDeleteUser, adminListUsers, adminUpdateUser } from '../../api/endpoints'
+import {
+  adminDeactivateUser,
+  adminListUsers,
+  adminReactivateUser,
+  adminSuspendUser,
+  adminUnsuspendUser,
+} from '../../api/endpoints'
 import { ApiError } from '../../api/client'
 import { Banner } from '../../components/Banner'
 import { Button } from '../../components/Button'
@@ -9,20 +15,37 @@ import { Modal } from '../../components/Modal'
 import { Skeleton } from '../../components/Skeleton'
 import { StatusChip } from '../../components/StatusChip'
 
+const STATUS_FILTERS = [
+  { value: '', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'suspended', label: 'Suspended' },
+  { value: 'deactivated', label: 'Deactivated' },
+]
+
+function statusTone(status) {
+  if (status === 'suspended') return 'warning'
+  if (status === 'deactivated') return 'danger'
+  return 'success'
+}
+
 export function AdminUsersPage() {
   const { token, user: me } = useAuth()
   const [q, setQ] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [users, setUsers] = useState(null)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)
-  const [editing, setEditing] = useState(null)
-  const [deleteId, setDeleteId] = useState(null)
+  const [confirm, setConfirm] = useState(null)
+  const [busy, setBusy] = useState(false)
 
   const load = useCallback(() => {
-    return adminListUsers(token, { q: q.trim() || undefined })
+    return adminListUsers(token, {
+      q: q.trim() || undefined,
+      accountStatus: statusFilter || undefined,
+    })
       .then((res) => setUsers(res.data.users || []))
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Unable to load users'))
-  }, [token, q])
+  }, [token, q, statusFilter])
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -32,31 +55,28 @@ export function AdminUsersPage() {
     return () => clearTimeout(t)
   }, [load])
 
-  async function save() {
-    try {
-      await adminUpdateUser(token, editing.id, {
-        name: editing.name,
-        email: editing.email,
-        phone: editing.phone,
-        role: editing.role,
-      })
-      setNotice('User updated.')
-      setEditing(null)
-      await load()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Unable to update user')
-    }
+  function canManage(u) {
+    return u.role !== 'admin' && u.id !== me?.id
   }
 
-  async function remove() {
+  async function runAction() {
+    if (!confirm) return
+    setBusy(true)
+    setError(null)
     try {
-      await adminDeleteUser(token, deleteId)
-      setNotice('User deleted.')
-      setDeleteId(null)
+      let res
+      if (confirm.action === 'suspend') res = await adminSuspendUser(token, confirm.user.id)
+      else if (confirm.action === 'unsuspend') res = await adminUnsuspendUser(token, confirm.user.id)
+      else if (confirm.action === 'deactivate') res = await adminDeactivateUser(token, confirm.user.id)
+      else if (confirm.action === 'reactivate') res = await adminReactivateUser(token, confirm.user.id)
+      setNotice(res?.message || 'Account updated.')
+      setConfirm(null)
       await load()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Unable to delete user')
-      setDeleteId(null)
+      setError(err instanceof ApiError ? err.message : 'Unable to update account')
+      setConfirm(null)
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -64,10 +84,21 @@ export function AdminUsersPage() {
     <div className="admin-page">
       <p className="eyebrow">Operations</p>
       <h1>Users</h1>
-      <p className="lede">Search accounts, change roles, and remove non-admin users.</p>
+      <p className="lede">
+        Search accounts and suspend or deactivate them. Profile fields cannot be edited by admins.
+      </p>
 
       <div className="admin-toolbar">
         <Field id="user-q" label="Search" value={q} onChange={setQ} placeholder="Name, email, phone" />
+        {STATUS_FILTERS.map((f) => (
+          <Button
+            key={f.value || 'all'}
+            variant={statusFilter === f.value ? 'primary' : 'secondary'}
+            onClick={() => setStatusFilter(f.value)}
+          >
+            {f.label}
+          </Button>
+        ))}
       </div>
 
       {error ? <Banner tone="danger" title="Error" message={error} /> : null}
@@ -84,69 +115,105 @@ export function AdminUsersPage() {
                 <th>Email</th>
                 <th>Phone</th>
                 <th>Role</th>
+                <th>Status</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.name}</td>
-                  <td>{u.email}</td>
-                  <td>{u.phone}</td>
-                  <td>
-                    <StatusChip tone={u.role === 'admin' ? 'success' : 'neutral'}>{u.role}</StatusChip>
-                  </td>
-                  <td>
-                    <div className="stack" style={{ gap: 6 }}>
-                      <Button variant="secondary" onClick={() => setEditing({ ...u })}>Edit</Button>
-                      {u.role !== 'admin' && u.id !== me?.id ? (
-                        <Button variant="danger" onClick={() => setDeleteId(u.id)}>Delete</Button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {users.map((u) => {
+                const status = u.account_status || 'active'
+                return (
+                  <tr key={u.id}>
+                    <td>{u.name}</td>
+                    <td>{u.email}</td>
+                    <td>{u.phone}</td>
+                    <td>
+                      <StatusChip tone={u.role === 'admin' ? 'success' : 'neutral'}>{u.role}</StatusChip>
+                    </td>
+                    <td>
+                      <StatusChip tone={statusTone(status)}>{status}</StatusChip>
+                    </td>
+                    <td>
+                      {canManage(u) ? (
+                        <div className="stack" style={{ gap: 6 }}>
+                          {status === 'active' ? (
+                            <Button
+                              variant="secondary"
+                              onClick={() => setConfirm({
+                                action: 'suspend',
+                                user: u,
+                                title: 'Suspend account?',
+                                message: `Suspend ${u.email}? They cannot sign in or use SLAM until unsuspended. Active subscriptions will pause.`,
+                                confirmLabel: 'Suspend',
+                              })}
+                            >
+                              Suspend
+                            </Button>
+                          ) : null}
+                          {status === 'suspended' ? (
+                            <Button
+                              variant="secondary"
+                              onClick={() => setConfirm({
+                                action: 'unsuspend',
+                                user: u,
+                                title: 'Unsuspend account?',
+                                message: `Restore access for ${u.email}? Paused subscriptions will resume.`,
+                                confirmLabel: 'Unsuspend',
+                              })}
+                            >
+                              Unsuspend
+                            </Button>
+                          ) : null}
+                          {status !== 'deactivated' ? (
+                            <Button
+                              variant="danger"
+                              onClick={() => setConfirm({
+                                action: 'deactivate',
+                                user: u,
+                                title: 'Deactivate account?',
+                                message: `Soft-deactivate ${u.email}? Login and usage are blocked. You can reactivate later.`,
+                                confirmLabel: 'Deactivate',
+                                danger: true,
+                              })}
+                            >
+                              Deactivate
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="secondary"
+                              onClick={() => setConfirm({
+                                action: 'reactivate',
+                                user: u,
+                                title: 'Reactivate account?',
+                                message: `Restore ${u.email} to active? Paused subscriptions will resume.`,
+                                confirmLabel: 'Reactivate',
+                              })}
+                            >
+                              Reactivate
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      {editing ? (
+      {confirm ? (
         <Modal
-          title="Edit user"
-          confirmLabel="Save"
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={busy ? 'Working…' : confirm.confirmLabel}
           cancelLabel="Cancel"
-          onConfirm={save}
-          onDismiss={() => setEditing(null)}
-        >
-          <div className="stack-lg">
-            <Field id="u-name" label="Name" value={editing.name} onChange={(v) => setEditing({ ...editing, name: v })} />
-            <Field id="u-email" label="Email" type="email" value={editing.email} onChange={(v) => setEditing({ ...editing, email: v })} />
-            <Field id="u-phone" label="Phone" value={editing.phone} onChange={(v) => setEditing({ ...editing, phone: v })} />
-            <label className="field">
-              <span>Role</span>
-              <select
-                value={editing.role}
-                onChange={(e) => setEditing({ ...editing, role: e.target.value })}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
-              >
-                <option value="user">user</option>
-                <option value="admin">admin</option>
-              </select>
-            </label>
-          </div>
-        </Modal>
-      ) : null}
-
-      {deleteId ? (
-        <Modal
-          title="Delete user?"
-          message="This cannot be undone."
-          confirmLabel="Delete"
-          cancelLabel="Cancel"
-          danger
-          onConfirm={remove}
-          onDismiss={() => setDeleteId(null)}
+          danger={Boolean(confirm.danger)}
+          onConfirm={busy ? undefined : runAction}
+          onDismiss={busy ? undefined : () => setConfirm(null)}
         />
       ) : null}
     </div>
