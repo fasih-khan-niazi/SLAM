@@ -34,7 +34,7 @@ class SessionStore(private val context: Context) {
     val pinAttemptCap: Flow<Int> = accountFlow("pin_attempt_cap", 3)
     val pinWindowMinutes: Flow<Int> = accountFlow("pin_window_minutes", 15)
     val emergencyEnabled: Flow<Boolean> = accountFlow("emergency_feature", true)
-    val emergencyIntervalHours: Flow<Int> = accountFlow("emergency_hours", 1)
+    val emergencyIntervalMinutes: Flow<Int> = accountFlow("emergency_minutes", 60)
     val maxContacts: Flow<Int> = accountFlow("max_contacts", 1)
     val smsPrefix: Flow<String> = accountFlow("sms_prefix", "SLAM")
     val pinMinLength: Flow<Int> = accountFlow("pin_min_length", 4)
@@ -79,7 +79,7 @@ class SessionStore(private val context: Context) {
         pinCap: Int?,
         windowMinutes: Int?,
         emergencyOn: Boolean?,
-        emergencyHours: Int?,
+        emergencyMinutes: Int?,
         smsPrefix: String? = null,
         pinMinLength: Int? = null,
         pinMaxLength: Int? = null,
@@ -88,14 +88,14 @@ class SessionStore(private val context: Context) {
     ) {
         val cap = pinCap?.takeIf { it in 1..30 } ?: 3
         val window = windowMinutes?.takeIf { it in 1..1440 } ?: 15
-        val hours = emergencyHours?.takeIf { it in 1..24 } ?: 1
+        val minutes = emergencyMinutes?.takeIf { it in 15..1440 } ?: 60
         val minPin = pinMinLength?.coerceIn(4, 8) ?: 4
         val maxPin = pinMaxLength?.coerceIn(minPin, 8) ?: 6
         context.dataStore.edit {
             it[accountInt("pin_attempt_cap")] = cap
             it[accountInt("pin_window_minutes")] = window
             it[accountBoolean("emergency_feature")] = emergencyOn != false
-            it[accountInt("emergency_hours")] = hours
+            it[accountInt("emergency_minutes")] = minutes
             it[stringPreferencesKey(scoped("sms_prefix"))] =
                 smsPrefix?.trim()?.uppercase()?.takeIf { prefix -> prefix.matches(Regex("[A-Z0-9]{2,12}")) } ?: "SLAM"
             it[accountInt("pin_min_length")] = minPin
@@ -117,7 +117,7 @@ class SessionStore(private val context: Context) {
 
     suspend fun cachedEmergencyEnabled(): Boolean = emergencyEnabled.first()
 
-    suspend fun cachedEmergencyHours(): Int = emergencyIntervalHours.first()
+    suspend fun cachedEmergencyMinutes(): Int = emergencyIntervalMinutes.first()
 
     suspend fun cachedMaxContacts(): Int = maxContacts.first()
     suspend fun cachedSmsPrefix(): String = smsPrefix.first()

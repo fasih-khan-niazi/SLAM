@@ -108,8 +108,16 @@ data class PublicConfig(
     val maintenance: Boolean? = null,
     @SerializedName("payments_enabled") val paymentsEnabled: Boolean? = null,
     @SerializedName("emergency_enabled") val emergencyEnabled: Boolean? = null,
+    @SerializedName("emergency_interval_minutes") val emergencyIntervalMinutes: Int? = null,
+    /** Legacy field; prefer [emergencyIntervalMinutes]. */
     @SerializedName("emergency_interval_hours") val emergencyIntervalHours: Int? = null,
-)
+) {
+    fun resolvedEmergencyMinutes(): Int {
+        emergencyIntervalMinutes?.takeIf { it in 15..1440 }?.let { return it }
+        emergencyIntervalHours?.takeIf { it in 1..24 }?.let { return (it * 60).coerceIn(15, 1440) }
+        return 60
+    }
+}
 
 data class LocationLogResult(
     @SerializedName("requests_used") val requestsUsed: Int?,
