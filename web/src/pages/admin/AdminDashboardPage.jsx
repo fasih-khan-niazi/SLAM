@@ -56,7 +56,6 @@ export function AdminDashboardPage() {
           <Skeleton height={140} />
           <Skeleton height={140} />
           <Skeleton height={140} />
-          <Skeleton height={140} />
         </div>
       ) : (
         <div className="admin-grid" style={{ marginTop: 24 }}>
@@ -74,13 +73,6 @@ export function AdminDashboardPage() {
             <h3>Active plans</h3>
             <p className="stat">{stats?.activePlans ?? '—'}</p>
             <Link to="/admin/plans" className="btn">Manage plans</Link>
-          </div>
-          <div className="admin-card">
-            <h3>Product config</h3>
-            <p className="stat" style={{ fontSize: '1.35rem' }}>
-              SMS {stats?.smsPrefix || 'SLAM'}
-            </p>
-            <Link to="/admin/config" className="btn">Open config</Link>
           </div>
         </div>
       )}
