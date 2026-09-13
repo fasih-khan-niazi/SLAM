@@ -5,12 +5,18 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "node --watch app.js"
+    "dev": "node --watch app.js",
+    "test": "node --test",
+    "reset-user-free": "node scripts/reset-user-to-free.js"
   },
   "engines": {
     "node": ">=18"
   },
-  "keywords": ["slam", "location", "sms"],
+  "keywords": [
+    "slam",
+    "location",
+    "sms"
+  ],
   "license": "UNLICENSED",
   "private": true,
   "type": "commonjs",
@@ -19,11 +25,12 @@
     "@adminjs/sequelize": "^3.0.0",
     "adminjs": "^7.8.13",
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.11.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
-    "helmet": "^8.1.0",
     "express-session": "^1.19.0",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
     "mysql2": "^3.22.5",

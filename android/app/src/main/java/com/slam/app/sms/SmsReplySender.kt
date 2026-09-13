@@ -14,7 +14,7 @@ class SmsReplySender(private val context: Context) {
             return false
         }
         return try {
-            val manager = context.getSystemService(SmsManager::class.java) ?: SmsManager.getDefault()
+            val manager = context.getSystemService(SmsManager::class.java) ?: return false
             val parts = manager.divideMessage(body)
             if (parts.size == 1) {
                 manager.sendTextMessage(to, null, body, null, null)

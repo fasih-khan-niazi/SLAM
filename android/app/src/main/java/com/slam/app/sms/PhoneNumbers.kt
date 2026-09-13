@@ -16,6 +16,6 @@ object PhoneNumbers {
 
     fun isValid(raw: String): Boolean {
         val d = digits(raw)
-        return d.length in 10..15
+        return d.length in 11..12
     }
 }

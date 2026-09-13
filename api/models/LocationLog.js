@@ -7,6 +7,11 @@ const LocationLog = sequelize.define('LocationLog', {
     primaryKey: true,
     autoIncrement: true,
   },
+  event_id: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true,
+  },
   user_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -22,6 +27,23 @@ const LocationLog = sequelize.define('LocationLog', {
   accuracy: {
     type: DataTypes.ENUM('HIGH', 'MEDIUM', 'LOW'),
     defaultValue: 'LOW',
+  },
+  accuracy_meters: {
+    type: DataTypes.DECIMAL(8, 2),
+    allowNull: true,
+  },
+  source: {
+    type: DataTypes.ENUM('CURRENT', 'LAST_KNOWN'),
+    allowNull: false,
+    defaultValue: 'CURRENT',
+  },
+  provider: {
+    type: DataTypes.STRING(32),
+    allowNull: true,
+  },
+  captured_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
   },
   requested_by: {
     type: DataTypes.STRING,

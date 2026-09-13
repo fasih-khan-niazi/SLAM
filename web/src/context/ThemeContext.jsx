@@ -6,7 +6,7 @@ const STORAGE_KEY = 'slam_theme'
 function initialTheme() {
   const saved = localStorage.getItem(STORAGE_KEY)
   if (saved === 'light' || saved === 'dark') return saved
-  return 'dark'
+  return 'light'
 }
 
 export function ThemeProvider({ children }) {
@@ -16,7 +16,7 @@ export function ThemeProvider({ children }) {
     document.documentElement.dataset.theme = theme
     document.querySelector('meta[name="theme-color"]')?.setAttribute(
       'content',
-      theme === 'light' ? '#F4F7FB' : '#0B1220',
+      theme === 'light' ? '#F5F5F5' : '#0A0A0A',
     )
     localStorage.setItem(STORAGE_KEY, theme)
   }, [theme])
