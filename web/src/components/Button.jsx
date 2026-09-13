@@ -10,6 +10,8 @@ export function Button({
   const className = [
     'btn',
     variant === 'ghost' ? 'btn-ghost' : '',
+    variant === 'secondary' ? 'btn-secondary' : '',
+    variant === 'danger' ? 'btn-danger' : '',
     block ? 'btn-block' : '',
   ].filter(Boolean).join(' ')
 

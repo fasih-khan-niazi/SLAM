@@ -6,6 +6,8 @@ export function Field({
   onChange,
   autoComplete,
   required = false,
+  error = '',
+  placeholder = '',
 }) {
   return (
     <div className="field">
@@ -16,8 +18,10 @@ export function Field({
         value={value}
         required={required}
         autoComplete={autoComplete}
+        placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
       />
+      {error ? <span className="field-error">{error}</span> : null}
     </div>
   )
 }
