@@ -76,7 +76,11 @@ fun SettingsScreen(
 
         SlamCard {
             Column(Modifier.padding(20.dp)) {
-                Text("Appearance", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Appearance",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
                 Spacer(Modifier.height(8.dp))
                 SlamSwitchRow(
                     title = "Dark theme",
@@ -106,7 +110,11 @@ fun SettingsScreen(
         Spacer(Modifier.height(12.dp))
         SlamCard {
             Column(Modifier.padding(20.dp)) {
-                Text("Location preferences", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Location preferences",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
                 Spacer(Modifier.height(8.dp))
                 SlamSwitchRow(
                     title = "Prefer battery",
@@ -134,7 +142,11 @@ fun SettingsScreen(
         Spacer(Modifier.height(12.dp))
         SlamCard {
             Column(Modifier.padding(20.dp)) {
-                Text("Device reliability", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Device reliability",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Phone battery savers can stop background listening. Allow unrestricted use for SLAM.",
@@ -171,7 +183,11 @@ fun SettingsScreen(
         Spacer(Modifier.height(12.dp))
         SlamCard {
             Column(Modifier.padding(20.dp)) {
-                Text("Help", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Help",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Replay the short setup guide anytime.",
@@ -189,7 +205,11 @@ fun SettingsScreen(
         Spacer(Modifier.height(12.dp))
         SlamCard {
             Column(Modifier.padding(20.dp)) {
-                Text("Account", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Account",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
                 Spacer(Modifier.height(8.dp))
                 if (displayName.isNotBlank()) {
                     Text(displayName, style = MaterialTheme.typography.bodyLarge)

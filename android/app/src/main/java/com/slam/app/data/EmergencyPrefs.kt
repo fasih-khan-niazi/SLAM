@@ -1,6 +1,11 @@
 package com.slam.app.data
 
 import android.content.Context
+import android.content.SharedPreferences
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 class EmergencyPrefs(private val context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -26,6 +31,18 @@ class EmergencyPrefs(private val context: Context) {
 
     fun lastRun(): Long = prefs.getLong(scoped(KEY_LAST), 0L)
     fun lastResult(): String = prefs.getString(scoped(KEY_RESULT), "").orEmpty()
+
+    fun isOnFlow(): Flow<Boolean> = callbackFlow {
+        fun emitCurrent() {
+            trySend(isOn())
+        }
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changed ->
+            if (changed == null || changed == key()) emitCurrent()
+        }
+        emitCurrent()
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.distinctUntilChanged()
 
     fun clear(userId: String) {
         prefs.edit()

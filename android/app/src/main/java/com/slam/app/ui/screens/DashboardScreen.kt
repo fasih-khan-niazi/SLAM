@@ -16,14 +16,9 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
@@ -83,6 +78,16 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 _state.value = _state.value.copy(
                     remaining = remaining.takeUnless { it == Int.MAX_VALUE },
                 )
+            }
+        }
+        viewModelScope.launch {
+            ListenerPrefs(getApplication()).listeningActiveFlow().collectLatest { listening ->
+                _state.value = _state.value.copy(listening = listening)
+            }
+        }
+        viewModelScope.launch {
+            EmergencyPrefs(getApplication()).isOnFlow().collectLatest { emergency ->
+                _state.value = _state.value.copy(emergency = emergency)
             }
         }
         refresh()
@@ -191,7 +196,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     onOpenTracking: () -> Unit,
@@ -199,23 +203,10 @@ fun DashboardScreen(
     viewModel: DashboardViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var refreshing by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
     LaunchedEffect(state.sessionExpired) {
         if (state.sessionExpired) onSessionExpired()
     }
 
-    PullToRefreshBox(
-        isRefreshing = refreshing,
-        onRefresh = {
-            scope.launch {
-                refreshing = true
-                viewModel.refresh()
-                refreshing = false
-            }
-        },
-        modifier = Modifier.fillMaxSize(),
-    ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
@@ -232,6 +223,7 @@ fun DashboardScreen(
                 Text(
                     "Hello${state.name.substringBefore(' ').takeIf { it.isNotBlank() }?.let { ", $it" }.orEmpty()}",
                     style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.weight(1f),
                 )
                 FilledTonalIconButton(
@@ -286,7 +278,11 @@ fun DashboardScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text("Protection", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "Protection",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
                         SlamStatusChip(
                             text = if (state.listening) "Protected" else "Attention needed",
                             tone = if (state.listening) SlamStatusTone.SUCCESS else SlamStatusTone.WARNING,
@@ -309,7 +305,11 @@ fun DashboardScreen(
         item {
             SlamCard {
                 Column(Modifier.padding(20.dp)) {
-                    Text("Last successful location", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Last successful location",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                     Spacer(Modifier.height(8.dp))
                     Text(
                         state.lastLocationSummary
@@ -323,7 +323,11 @@ fun DashboardScreen(
             SlamCard {
                 Column(Modifier.padding(20.dp)) {
                     Text("Current plan", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(state.plan, style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        state.plan,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                     Spacer(Modifier.height(8.dp))
                     Text(
                         if (state.limit == null) {
@@ -339,7 +343,11 @@ fun DashboardScreen(
         item {
             SlamCard {
                 Column(Modifier.padding(20.dp)) {
-                    Text("Emergency mode", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Emergency mode",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                     Spacer(Modifier.height(8.dp))
                     SlamStatusChip(
                         text = if (state.emergency) "Active" else "Off",
@@ -353,6 +361,5 @@ fun DashboardScreen(
                 }
             }
         }
-    }
     }
 }
