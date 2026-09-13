@@ -67,3 +67,88 @@ export function submitPayment(token, { subscriptionId, paymentMethod, transactio
     file: screenshot,
   })
 }
+
+/* ——— Admin (role === admin) ——— */
+
+export function adminStats(token) {
+  return api('/api/admin/stats', { token })
+}
+
+export function adminListPayments(token, { status } = {}) {
+  const q = status ? `?status=${encodeURIComponent(status)}` : ''
+  return api(`/api/admin/payments${q}`, { token })
+}
+
+export function adminApprovePayment(token, id) {
+  return api(`/api/admin/payments/${id}/approve`, { method: 'PATCH', token })
+}
+
+export function adminRejectPayment(token, id) {
+  return api(`/api/admin/payments/${id}/reject`, { method: 'PATCH', token })
+}
+
+export function adminListPlans(token) {
+  return api('/api/admin/plans', { token })
+}
+
+export function adminCreatePlan(token, body) {
+  return api('/api/admin/plans', { method: 'POST', body, token })
+}
+
+export function adminUpdatePlan(token, id, body) {
+  return api(`/api/admin/plans/${id}`, { method: 'PATCH', body, token })
+}
+
+export function adminDeletePlan(token, id) {
+  return api(`/api/admin/plans/${id}`, { method: 'DELETE', token })
+}
+
+export function adminGetConfig(token) {
+  return api('/api/admin/config', { token })
+}
+
+export function adminUpdateConfig(token, body) {
+  return api('/api/admin/config', { method: 'PATCH', body, token })
+}
+
+export function adminListUsers(token, { q, role, accountStatus } = {}) {
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  if (role) params.set('role', role)
+  if (accountStatus) params.set('account_status', accountStatus)
+  const qs = params.toString()
+  return api(`/api/admin/users${qs ? `?${qs}` : ''}`, { token })
+}
+
+export function adminSuspendUser(token, id) {
+  return api(`/api/admin/users/${id}/suspend`, { method: 'POST', token })
+}
+
+export function adminUnsuspendUser(token, id) {
+  return api(`/api/admin/users/${id}/unsuspend`, { method: 'POST', token })
+}
+
+export function adminDeactivateUser(token, id) {
+  return api(`/api/admin/users/${id}/deactivate`, { method: 'POST', token })
+}
+
+export function adminReactivateUser(token, id) {
+  return api(`/api/admin/users/${id}/reactivate`, { method: 'POST', token })
+}
+
+export function adminListSubscriptions(token, { status, userId } = {}) {
+  const params = new URLSearchParams()
+  if (status) params.set('status', status)
+  if (userId) params.set('user_id', String(userId))
+  const qs = params.toString()
+  return api(`/api/admin/subscriptions${qs ? `?${qs}` : ''}`, { token })
+}
+
+export function adminUpdateSubscription(token, id, body) {
+  return api(`/api/admin/subscriptions/${id}`, { method: 'PATCH', body, token })
+}
+
+export function adminListLocationLogs(token, { userId } = {}) {
+  const q = userId ? `?user_id=${encodeURIComponent(userId)}` : ''
+  return api(`/api/admin/location-logs${q}`, { token })
+}

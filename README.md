@@ -9,8 +9,8 @@ Find a phone’s location with a text message. No mobile data required on the tr
 | Product | Path | Role |
 |---------|------|------|
 | Android app | `android/` | SMS commands, GPS, trusted contacts, offline tracking |
-| API + Admin | `api/` | Auth, subscriptions, payments, location logs. AdminJS at `/admin` |
-| Web portal | `web/` | Register, plans, payments, dashboard |
+| API | `api/` | Auth, subscriptions, payments, location logs, admin REST |
+| Web portal | `web/` | User account + operator admin (`/admin`) |
 
 ## Tools and technologies
 
@@ -22,12 +22,12 @@ Find a phone’s location with a text message. No mobile data required on the tr
 | Location | Google Play services Fused Location, LocationManager | GPS → network → last known |
 | SMS | `SmsReceiver`, `SmsManager` | Command in, location out |
 | Background | Foreground service (`location`) | Keeps the listener alive |
-| API | Node.js 18+, Express 4.21 | REST + AdminJS at `/admin` |
+| API | Node.js 18+, Express 4.21 | REST (`/api`, `/api/admin`) |
 | API data | MySQL, Sequelize, JWT, bcrypt | Accounts, plans, logs |
 | Email | Nodemailer + Gmail App Password | Payment notices |
 | Files | Cloudinary | Payment screenshots |
-| Web portal | React + Vite | Plans and payments |
-| Admin | AdminJS on the API | Users, payments, plans |
+| Web portal | React + Vite | User plans/payments + admin RBAC |
+| Admin | Web portal `/admin` (`role === admin`) | Users, payments, plans, config |
 | Hosting | Railway | MySQL + `slam-api` + `slam-web` |
 | Local DB access | Railway public TCP proxy | `*.proxy.rlwy.net` + proxy port |
 | Maps | Later | SMS map links and web map UI when we reach that work |
@@ -45,8 +45,7 @@ npm run dev
 
 - API: http://localhost:3000
 - Health: http://localhost:3000/health
-- Admin: http://localhost:3000/admin  
-  `admin@slam.com` / `Password123`
+- Seeded operator: `admin@slam.com` / `Password123` (sign in on the **web** portal)
 
 ## Android
 
@@ -62,6 +61,8 @@ npm run dev
 ```
 
 http://localhost:5173 — API must already be on port 3000.
+
+Operator admin: sign in as the seeded admin → http://localhost:5173/admin
 
 ## Docs
 

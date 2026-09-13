@@ -28,6 +28,11 @@ const User = sequelize.define('User', {
     type: DataTypes.ENUM('user', 'admin'),
     defaultValue: 'user',
   },
+  account_status: {
+    type: DataTypes.STRING(32),
+    allowNull: false,
+    defaultValue: 'active',
+  },
   pin_salt: {
     type: DataTypes.STRING(64),
     allowNull: true,

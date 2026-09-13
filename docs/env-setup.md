@@ -86,7 +86,7 @@ copy .env.example .env
 | `PORT` | api | Local: `3000`. Railway injects this — do not set it on the service |
 | `JWT_SECRET` | api | Random 32+ character string |
 | `JWT_EXPIRES_IN` | api | Optional. Default `7d`. jsonwebtoken duration string. |
-| `SESSION_SECRET` | api | Different random 32+ character string |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | api | Seeded operator account (web portal `/admin`) |
 | `ADMIN_EMAIL` | api | `admin@slam.com` |
 | `ADMIN_PASSWORD` | api | `Password123` |
 | `EMAIL_USER` | api | Gmail address used for outbound mail |
@@ -108,7 +108,7 @@ npm run dev
 
 - API: `http://localhost:3000`
 - Health: `http://localhost:3000/health`
-- Admin: `http://localhost:3000/admin`
+- Operator admin: sign in on the web portal (`FRONTEND_URL/admin`) as the seeded admin
 
 Admin login: `admin@slam.com` / `Password123`
 

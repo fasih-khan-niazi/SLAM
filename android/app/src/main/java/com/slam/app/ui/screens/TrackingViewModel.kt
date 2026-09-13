@@ -115,6 +115,8 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
                         config.smsPrefix,
                         config.pinMinLength,
                         config.pinMaxLength,
+                        config.maintenance,
+                        config.paymentsEnabled,
                     )
                 }
                 var plan = _state.value.planName
@@ -143,8 +145,8 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
         val app = getApplication<Application>()
         val remaining = session.cachedRemaining.first()
         val unlimited = session.cachedUnlimited.first()
-        val minPin = session.cachedPinMinLength().coerceIn(4, 6)
-        val maxPin = session.cachedPinMaxLength().coerceIn(minPin, 6)
+        val minPin = session.cachedPinMinLength().coerceIn(4, 8)
+        val maxPin = session.cachedPinMaxLength().coerceIn(minPin, 8)
         val limit = session.quotaLimit()
         val accountId = AccountIdentity.current(app)
         val pending = SlamDatabase.get(app).eventLedger().pending(accountId).size
