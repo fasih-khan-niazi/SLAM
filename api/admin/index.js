@@ -1,7 +1,11 @@
-const AdminJS = require('adminjs').default || require('adminjs')
+const path = require('path')
+const adminjs = require('adminjs')
+const AdminJS = adminjs.default || adminjs
+const { ComponentLoader } = adminjs
 const AdminJSExpress = require('@adminjs/express')
 const AdminJSSequelize = require('@adminjs/sequelize')
 const { sendEmail } = require('../utils/email')
+const { notifyUser } = require('../utils/notify')
 const { cancelOtherActiveSubscriptions } = require('../utils/subscription')
 const {
   User,
@@ -9,15 +13,77 @@ const {
   Subscription,
   Payment,
   LocationLog,
+  SystemConfig,
+  Notification,
 } = require('../models')
 
 AdminJS.registerAdapter(AdminJSSequelize)
 
+const slamNav = { name: 'SLAM', icon: 'Map' }
+const componentLoader = new ComponentLoader()
+const Dashboard = componentLoader.add('SlamDashboard', path.join(__dirname, 'dashboard'))
+
 const admin = new AdminJS({
+  componentLoader,
+  dashboard: {
+    component: Dashboard,
+    handler: async () => {
+      const [pendingPayments, users, config] = await Promise.all([
+        Payment.count({ where: { status: 'pending' } }),
+        User.count(),
+        SystemConfig.findOne({ order: [['id', 'ASC']] }),
+      ])
+      return {
+        pendingPayments,
+        users,
+        emergencyEnabled: config ? Boolean(config.emergency_enabled) : true,
+      }
+    },
+  },
+  branding: {
+    companyName: 'SLAM',
+    logo: false,
+    withMadeWithLove: false,
+    favicon: false,
+    theme: {
+      colors: {
+        primary100: '#0d9488',
+        primary80: '#14b8a6',
+        primary60: '#2dd4bf',
+        primary40: '#5eead4',
+        primary20: '#ccfbf1',
+        accent: '#14b8a6',
+        hoverBg: '#134e4a',
+      },
+    },
+  },
+  locale: {
+    language: 'en',
+    translations: {
+      en: {
+        labels: {
+          User: 'Users',
+          SubscriptionPlan: 'Plans',
+          Subscription: 'Subscriptions',
+          Payment: 'Payments',
+          LocationLog: 'Location logs',
+          SystemConfig: 'Product settings',
+          Notification: 'Notifications',
+        },
+        components: {
+          Login: {
+            welcomeHeader: 'SLAM Admin',
+            welcomeMessage: 'Sign in to review payments and product settings.',
+          },
+        },
+      },
+    },
+  },
   resources: [
     {
       resource: User,
       options: {
+        navigation: slamNav,
         properties: {
           password_hash: { isVisible: false },
         },
@@ -28,12 +94,14 @@ const admin = new AdminJS({
     {
       resource: SubscriptionPlan,
       options: {
+        navigation: slamNav,
         listProperties: ['id', 'name', 'price_pkr', 'monthly_limit', 'max_contacts', 'is_active'],
       },
     },
     {
       resource: Subscription,
       options: {
+        navigation: slamNav,
         listProperties: ['id', 'user_id', 'plan_id', 'status', 'requests_used', 'start_date', 'end_date'],
         filterProperties: ['status', 'user_id'],
       },
@@ -41,7 +109,21 @@ const admin = new AdminJS({
     {
       resource: Payment,
       options: {
+        navigation: slamNav,
         listProperties: ['id', 'user_id', 'plan_id', 'amount_pkr', 'payment_method', 'transaction_id', 'status', 'createdAt'],
+        showProperties: [
+          'id',
+          'user_id',
+          'plan_id',
+          'subscription_id',
+          'amount_pkr',
+          'payment_method',
+          'transaction_id',
+          'screenshot_url',
+          'status',
+          'approved_at',
+          'createdAt',
+        ],
         filterProperties: ['status', 'payment_method'],
         actions: {
           approve: {
@@ -79,6 +161,12 @@ const admin = new AdminJS({
                 )
 
                 if (payment.User) {
+                  await notifyUser(
+                    payment.user_id,
+                    'Payment approved',
+                    `Your ${payment.plan ? payment.plan.name : ''} plan is now active.`,
+                    'payment',
+                  )
                   await sendEmail(
                     payment.User.email,
                     'Your SLAM subscription is active',
@@ -129,6 +217,12 @@ const admin = new AdminJS({
                 )
 
                 if (payment.User) {
+                  await notifyUser(
+                    payment.user_id,
+                    'Payment rejected',
+                    `We could not verify transaction ${payment.transaction_id}.`,
+                    'payment',
+                  )
                   await sendEmail(
                     payment.User.email,
                     'SLAM payment could not be verified',
@@ -156,16 +250,90 @@ const admin = new AdminJS({
     {
       resource: LocationLog,
       options: {
+        navigation: slamNav,
         listProperties: ['id', 'user_id', 'latitude', 'longitude', 'accuracy', 'requested_by', 'createdAt'],
+      },
+    },
+    {
+      resource: SystemConfig,
+      options: {
+        navigation: slamNav,
+        listProperties: [
+          'sms_prefix',
+          'login_attempt_cap',
+          'pin_attempt_cap',
+          'emergency_enabled',
+          'emergency_interval_hours',
+          'maintenance',
+        ],
+        editProperties: [
+          'sms_prefix',
+          'pin_min_length',
+          'pin_max_length',
+          'login_attempt_cap',
+          'login_window_minutes',
+          'pin_attempt_cap',
+          'pin_window_minutes',
+          'emergency_enabled',
+          'emergency_interval_hours',
+          'maintenance',
+          'payments_enabled',
+          'maps_enabled',
+          'email_enabled',
+        ],
+        properties: {
+          login_attempt_cap: {
+            label: 'Portal login — max failed attempts',
+            description: 'Wrong email/password tries on the website or phone login. After this many from one network, sign-in is blocked until the portal window ends.',
+          },
+          login_window_minutes: {
+            label: 'Portal login — window (minutes)',
+            description: 'How long failed portal logins are counted. Default 15.',
+          },
+          pin_attempt_cap: {
+            label: 'SMS PIN — max wrong attempts',
+            description: 'Wrong SLAM [PIN] LOCATE texts on the phone. After this many, locates stay silent until the SMS window ends.',
+          },
+          pin_window_minutes: {
+            label: 'SMS PIN — window (minutes)',
+            description: 'How long wrong SMS PINs are counted. Default 15. Updating the PIN on the phone clears the count.',
+          },
+          emergency_enabled: {
+            label: 'Emergency — available on phones',
+            description: 'When off, the Emergency toggle is hidden on the app.',
+          },
+          emergency_interval_hours: {
+            label: 'Emergency — hours between SMS',
+            description: 'Integer 1 to 24. The phone texts trusted numbers on this interval while Emergency is on. No server cron — the phone sends the SMS.',
+          },
+        },
+        actions: {
+          new: { isAccessible: false },
+          delete: { isAccessible: false },
+          edit: {
+            layout: [
+              ['sms_prefix'],
+              ['pin_min_length', 'pin_max_length'],
+              ['login_attempt_cap', 'login_window_minutes'],
+              ['pin_attempt_cap', 'pin_window_minutes'],
+              ['emergency_enabled', 'emergency_interval_hours'],
+              ['maintenance', 'payments_enabled'],
+              ['maps_enabled', 'email_enabled'],
+            ],
+          },
+        },
+      },
+    },
+    {
+      resource: Notification,
+      options: {
+        navigation: slamNav,
+        listProperties: ['id', 'user_id', 'title', 'kind', 'read_at', 'createdAt'],
+        filterProperties: ['user_id', 'kind'],
       },
     },
   ],
   rootPath: '/admin',
-  branding: {
-    companyName: 'SLAM Admin',
-    logo: false,
-    withMadeWithLove: false,
-  },
 })
 
 const adminRouter = AdminJSExpress.buildAuthenticatedRouter(
@@ -182,7 +350,12 @@ const adminRouter = AdminJSExpress.buildAuthenticatedRouter(
   null,
   {
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
+    proxy: true,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    },
   }
 )
 

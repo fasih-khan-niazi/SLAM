@@ -30,21 +30,31 @@ function validateRegister({ name, email, password, phone }) {
   if (String(password).length < 8) {
     return 'Password must be at least 8 characters'
   }
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    return 'Password must include a letter, a number, and a special character'
+  }
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password)) {
+    return 'Password must include upper and lower case letters'
+  }
 
   const normalizedPhone = normalizePhone(phone)
   if (!normalizedPhone) {
     return 'Phone is required'
   }
-  if (!/^\+?\d{10,15}$/.test(normalizedPhone)) {
-    return 'Enter a valid phone number (10–15 digits)'
+  if (!/^\+?\d{11,12}$/.test(normalizedPhone)) {
+    return 'Enter a valid phone number (11–12 digits)'
   }
 
   return null
 }
 
 function validateLogin({ email, password }) {
-  if (!normalizeEmail(email) || !password) {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail || !password) {
     return 'Email and password are required'
+  }
+  if (!EMAIL_RE.test(normalizedEmail)) {
+    return 'Enter a valid email address'
   }
   return null
 }

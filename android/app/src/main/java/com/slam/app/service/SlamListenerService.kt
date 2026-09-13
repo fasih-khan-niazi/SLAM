@@ -14,6 +14,12 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.slam.app.MainActivity
 import com.slam.app.R
+import com.slam.app.data.EmergencyPrefs
+import com.slam.app.data.ListenerPrefs
+import com.slam.app.location.QuietLocationWorker
+import com.slam.app.permissions.CorePrerequisites
+import com.slam.app.security.PinStore
+import com.slam.app.sms.EmergencyScheduler
 import com.slam.app.sms.LocateRequestHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,23 +34,41 @@ class SlamListenerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        ListenerPrefs(this).setServiceActive(true)
+        QuietLocationWorker.schedule(this)
         ensureChannel()
         startInForeground()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            QuietLocationWorker.cancel(this)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (!CorePrerequisites.status(this).listenerReady || !PinStore.get(this).hasPin()) {
+            ListenerPrefs(this).setListening(false)
+            QuietLocationWorker.cancel(this)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        QuietLocationWorker.schedule(this)
         startInForeground()
         val from = intent?.getStringExtra(EXTRA_FROM)
         val body = intent?.getStringExtra(EXTRA_BODY)
+        val messageId = intent?.getStringExtra(EXTRA_MESSAGE_ID)
         if (!from.isNullOrBlank() && !body.isNullOrBlank()) {
             scope.launch {
-                LocateRequestHandler(applicationContext).handle(from, body)
+                LocateRequestHandler(applicationContext).handle(from, body, messageId ?: "$from:${body.hashCode()}")
             }
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
+        ListenerPrefs(this).setServiceActive(false)
         scope.cancel()
         super.onDestroy()
     }
@@ -92,20 +116,44 @@ class SlamListenerService : Service() {
         const val NOTIFICATION_ID = 41
         const val EXTRA_FROM = "from"
         const val EXTRA_BODY = "body"
+        const val EXTRA_MESSAGE_ID = "message_id"
+        const val ACTION_STOP = "com.slam.app.STOP_LISTENER"
 
         fun start(context: Context): Boolean {
+            if (!CorePrerequisites.status(context).listenerReady || !PinStore.get(context).hasPin()) {
+                ListenerPrefs(context).setListening(false)
+                return false
+            }
             return try {
                 context.startForegroundService(Intent(context, SlamListenerService::class.java))
+                ListenerPrefs(context).setListening(true)
                 true
             } catch (_: Exception) {
+                ListenerPrefs(context).setListening(false)
                 false
             }
         }
 
-        fun locate(context: Context, from: String, body: String) {
+        fun stop(context: Context) {
+            ListenerPrefs(context).setListening(false)
+            ListenerPrefs(context).setServiceActive(false)
+            QuietLocationWorker.cancel(context)
+            EmergencyPrefs(context).setOn(false)
+            EmergencyScheduler.stop(context)
+            val intent = Intent(context, SlamListenerService::class.java).setAction(ACTION_STOP)
+            try {
+                context.startForegroundService(intent)
+            } catch (_: Exception) {
+                context.stopService(Intent(context, SlamListenerService::class.java))
+            }
+        }
+
+        fun locate(context: Context, from: String, body: String, messageId: String? = null) {
+            if (!ListenerPrefs(context).isListening()) return
             val intent = Intent(context, SlamListenerService::class.java)
                 .putExtra(EXTRA_FROM, from)
                 .putExtra(EXTRA_BODY, body)
+                .putExtra(EXTRA_MESSAGE_ID, messageId)
             context.startForegroundService(intent)
         }
     }
