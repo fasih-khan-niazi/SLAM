@@ -290,6 +290,28 @@ async function ensureUserPinColumns() {
       allowNull: true,
     })
   }
+  if (!table.account_status) {
+    await qi.addColumn('users', 'account_status', {
+      type: DataTypes.STRING(32),
+      allowNull: false,
+      defaultValue: 'active',
+    })
+  }
+}
+
+async function ensureSubscriptionPausedStatus() {
+  try {
+    await sequelize.query(
+      "ALTER TABLE `subscriptions` MODIFY COLUMN `status` ENUM(" +
+        "'pending_payment','pending_approval','active','expired','cancelled','paused'" +
+      ") NOT NULL DEFAULT 'pending_payment'"
+    )
+  } catch (err) {
+    // Already applied, or table missing before sync — ignore benign failures.
+    if (!/Duplicate|check that column|Can't FIND|Unknown table/i.test(err.message || '')) {
+      console.warn('ensureSubscriptionPausedStatus:', err.message)
+    }
+  }
 }
 
 async function syncDatabase() {
@@ -304,6 +326,7 @@ async function syncDatabase() {
     await ensurePaymentColumns()
     await ensureLocationLogColumns()
     await ensureUserPinColumns()
+    await ensureSubscriptionPausedStatus()
     await seedPlans()
     await seedAdmin()
     await seedSystemConfig()
