@@ -14,11 +14,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -45,45 +45,51 @@ fun SlamModal(
                 .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center,
         ) {
-            Column(
+            Surface(
                 modifier = Modifier
                     .padding(24.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .clickable(enabled = false) {}
-                    .padding(24.dp)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .clickable(enabled = false) {},
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
             ) {
-                Text(title, style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(8.dp))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 360.dp)
-                        .verticalScroll(rememberScrollState()),
-                ) {
+                Column(modifier = Modifier.padding(24.dp)) {
                     Text(
-                        message,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        title,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
-                }
-                Spacer(Modifier.height(20.dp))
-                SlamPrimaryButton(
-                    text = confirmLabel,
-                    onClick = onConfirm,
-                    style = if (destructive) {
-                        SlamButtonStyle.DESTRUCTIVE
-                    } else {
-                        SlamButtonStyle.PRIMARY
-                    },
-                )
-                if (cancelLabel.isNotEmpty()) {
-                    SlamTextButton(
-                        text = cancelLabel,
-                        onClick = onDismiss,
-                        modifier = Modifier.fillMaxWidth(),
+                    Spacer(Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 360.dp)
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        Text(
+                            message,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.height(20.dp))
+                    SlamPrimaryButton(
+                        text = confirmLabel,
+                        onClick = onConfirm,
+                        style = if (destructive) {
+                            SlamButtonStyle.DESTRUCTIVE
+                        } else {
+                            SlamButtonStyle.PRIMARY
+                        },
                     )
+                    if (cancelLabel.isNotEmpty()) {
+                        SlamTextButton(
+                            text = cancelLabel,
+                            onClick = onDismiss,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }

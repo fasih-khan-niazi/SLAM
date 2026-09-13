@@ -10,6 +10,7 @@ import android.provider.ContactsContract
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,11 +22,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -39,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -60,6 +65,7 @@ import com.slam.app.security.PinStore
 import com.slam.app.service.SlamListenerService
 import com.slam.app.sms.EmergencyScheduler
 import com.slam.app.sms.PhoneNumbers
+import com.slam.app.ui.components.LocalSlamHapticsEnabled
 import com.slam.app.ui.components.LocalSlamToastHostState
 import com.slam.app.ui.components.SlamBanner
 import com.slam.app.ui.components.SlamButtonStyle
@@ -71,6 +77,7 @@ import com.slam.app.ui.components.SlamPrimaryButton
 import com.slam.app.ui.components.SlamSkeleton
 import com.slam.app.ui.components.SlamStatusTone
 import com.slam.app.ui.components.SlamToastTone
+import com.slam.app.ui.components.slamHaptic
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
 
@@ -80,6 +87,8 @@ fun HomeScreen(
     viewModel: TrackingViewModel = viewModel(),
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
+    val haptics = LocalSlamHapticsEnabled.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val store = remember { SessionStore(context) }
     val scope = rememberCoroutineScope()
@@ -269,26 +278,44 @@ fun HomeScreen(
         else -> "Ready"
     }
 
-    PullToRefreshBox(
-        isRefreshing = state.bootstrapped && state.syncing,
-        onRefresh = { viewModel.refreshAll() },
-        modifier = Modifier.fillMaxSize(),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Tracking", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "PIN, trusted numbers, listening",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(24.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Tracking",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "PIN, trusted numbers, listening",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            FilledTonalIconButton(
+                onClick = {
+                    view.slamHaptic(haptics)
+                    viewModel.refreshAll()
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = "Refresh",
+                )
+            }
+        }
+        Spacer(Modifier.height(24.dp))
 
-            if (!state.bootstrapped) {
+        if (!state.bootstrapped) {
                 SlamSkeleton(height = 96)
                 Spacer(Modifier.height(12.dp))
                 SlamSkeleton(height = 140)
@@ -658,7 +685,6 @@ fun HomeScreen(
             )
             Spacer(Modifier.height(24.dp))
         }
-    }
 
     if (confirmListen) {
         SlamModal(

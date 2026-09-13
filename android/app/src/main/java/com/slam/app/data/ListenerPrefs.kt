@@ -1,6 +1,11 @@
 package com.slam.app.data
 
 import android.content.Context
+import android.content.SharedPreferences
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 class ListenerPrefs(private val context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -16,6 +21,18 @@ class ListenerPrefs(private val context: Context) {
     fun setServiceActive(on: Boolean) {
         prefs.edit().putBoolean(activeKey(), on).commit()
     }
+
+    fun listeningActiveFlow(): Flow<Boolean> = callbackFlow {
+        fun emitCurrent() {
+            trySend(isListening() && isServiceActive())
+        }
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            emitCurrent()
+        }
+        emitCurrent()
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.distinctUntilChanged()
 
     fun clear(userId: String) {
         prefs.edit()

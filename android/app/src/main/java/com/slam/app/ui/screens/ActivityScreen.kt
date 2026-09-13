@@ -4,24 +4,26 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import com.slam.app.R
 import com.slam.app.data.local.LocationHistoryEntity
@@ -32,10 +34,12 @@ import com.slam.app.data.SessionStore
 import com.slam.app.data.remote.NotificationItem
 import com.slam.app.data.remote.RemoteLocationLog
 import com.slam.app.data.remote.SlamApiFactory
+import com.slam.app.ui.components.LocalSlamHapticsEnabled
 import com.slam.app.ui.components.SlamBanner
 import com.slam.app.ui.components.SlamCard
 import com.slam.app.ui.components.SlamLottie
 import com.slam.app.ui.components.SlamStatusTone
+import com.slam.app.ui.components.slamHaptic
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -206,7 +210,6 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActivityScreen(
     onSessionExpired: () -> Unit = {},
@@ -215,97 +218,129 @@ fun ActivityScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val formatter = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
-    var refreshing by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+    val view = LocalView.current
+    val haptics = LocalSlamHapticsEnabled.current
 
     LaunchedEffect(state.sessionExpired) {
         if (state.sessionExpired) onSessionExpired()
     }
 
-    PullToRefreshBox(
-        isRefreshing = refreshing,
-        onRefresh = {
-            scope.launch {
-                refreshing = true
-                viewModel.refresh().join()
-                refreshing = false
-            }
-        },
+    LazyColumn(
         modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item {
-                Text("Activity", style = MaterialTheme.typography.headlineMedium)
-                Text(
-                    "Location replies for this account.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            state.syncWarning?.let { warning ->
-                item {
-                    SlamBanner(
-                        title = "Sync issue",
-                        message = warning,
-                        tone = SlamStatusTone.WARNING,
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Activity",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        "Location replies for this account.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                FilledTonalIconButton(
+                    onClick = {
+                        view.slamHaptic(haptics)
+                        viewModel.refresh()
+                    },
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Refresh,
+                        contentDescription = "Refresh",
                     )
                 }
             }
-            if (state.notifications.isNotEmpty()) {
-                item { Text("Notifications", style = MaterialTheme.typography.titleLarge) }
-                items(state.notifications, key = { "notification-${it.id}" }) { notification ->
-                    SlamCard {
-                        Column(Modifier.padding(16.dp)) {
-                            Text(notification.title, style = MaterialTheme.typography.titleMedium)
-                            Text(notification.body, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+        }
+        state.syncWarning?.let { warning ->
+            item {
+                SlamBanner(
+                    title = "Sync issue",
+                    message = warning,
+                    tone = SlamStatusTone.WARNING,
+                )
+            }
+        }
+        if (state.notifications.isNotEmpty()) {
+            item {
+                Text(
+                    "Notifications",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+            }
+            items(state.notifications, key = { "notification-${it.id}" }) { notification ->
+                SlamCard {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            notification.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(notification.body, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
-            item { Text("Location history", style = MaterialTheme.typography.titleLarge) }
-            if (state.events.isEmpty()) {
-                item {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        SlamLottie(resId = R.raw.lottie_empty, size = 120.dp)
-                        Spacer(Modifier.height(12.dp))
+        }
+        item {
+            Text(
+                "Location history",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        if (state.events.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    SlamLottie(resId = R.raw.lottie_empty, size = 120.dp)
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "No activity yet",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        "Successful SMS or emergency locates will show here.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else {
+            items(state.events, key = { it.key }) { event ->
+                SlamCard(
+                    modifier = Modifier.clickable {
+                        val uri = Uri.parse(
+                            "https://maps.google.com/?q=${event.latitude},${event.longitude}",
+                        )
+                        context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                    },
+                ) {
+                    Column(Modifier.padding(16.dp)) {
                         Text(
-                            "No activity yet",
+                            event.title,
                             style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            "Successful SMS or emergency locates will show here.",
+                            "Captured ${formatter.format(Date(event.timestampMs))}",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                    }
-                }
-            } else {
-                items(state.events, key = { it.key }) { event ->
-                    SlamCard(
-                        modifier = Modifier.clickable {
-                            val uri = Uri.parse(
-                                "https://maps.google.com/?q=${event.latitude},${event.longitude}",
-                            )
-                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                        },
-                    ) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text(event.title, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "Captured ${formatter.format(Date(event.timestampMs))}",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                "${"%.5f".format(event.latitude)}, ${"%.5f".format(event.longitude)}" +
-                                    event.accuracyMeters?.let { " · +/-${it.toInt()}m" }.orEmpty(),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        Text(
+                            "${"%.5f".format(event.latitude)}, ${"%.5f".format(event.longitude)}" +
+                                event.accuracyMeters?.let { " · +/-${it.toInt()}m" }.orEmpty(),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
