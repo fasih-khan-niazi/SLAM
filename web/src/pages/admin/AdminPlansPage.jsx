@@ -179,7 +179,7 @@ export function AdminPlansPage() {
         >
           <div className="stack-lg">
             <Field id="plan-name" label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
-            <Field id="plan-price" label="Price (PKR)" type="number" value={form.price_pkr} onChange={(v) => setForm({ ...form, price_pkr: v })} />
+            <Field id="plan-price" label="Price (PKR)" type="number" integerMode="nonNegative" min={0} value={form.price_pkr} onChange={(v) => setForm({ ...form, price_pkr: v })} />
             <label className="admin-toggle-row">
               <span>Unlimited locates</span>
               <input
@@ -193,6 +193,8 @@ export function AdminPlansPage() {
                 id="plan-limit"
                 label="Monthly limit"
                 type="number"
+                integerMode="positive"
+                min={1}
                 value={form.monthly_limit}
                 onChange={(v) => setForm({ ...form, monthly_limit: v })}
               />
@@ -201,6 +203,8 @@ export function AdminPlansPage() {
               id="plan-contacts"
               label="Max contacts"
               type="number"
+              integerMode="positive"
+              min={1}
               value={form.max_contacts}
               onChange={(v) => setForm({ ...form, max_contacts: v })}
             />
