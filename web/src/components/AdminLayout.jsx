@@ -1,0 +1,58 @@
+import { Link, NavLink, Outlet } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
+import { Logo } from './Logo'
+import { Button } from './Button'
+
+const NAV = [
+  { to: '/admin', end: true, label: 'Dashboard' },
+  { to: '/admin/payments', label: 'Payments' },
+  { to: '/admin/plans', label: 'Plans' },
+  { to: '/admin/config', label: 'Config' },
+  { to: '/admin/users', label: 'Users' },
+  { to: '/admin/subscriptions', label: 'Subscriptions' },
+  { to: '/admin/location-logs', label: 'Location logs' },
+]
+
+export function AdminLayout() {
+  const { user, logout } = useAuth()
+  const { theme, toggleTheme } = useTheme()
+
+  return (
+    <div className="admin-shell">
+      <aside className="admin-sidebar" aria-label="Admin">
+        <Link to="/admin" className="admin-brand">
+          <span style={{ color: 'var(--primary)', display: 'inline-flex' }}><Logo size={28} /></span>
+          <span className="admin-brand-text">
+            <strong>SLAM</strong>
+            <span>Operator</span>
+          </span>
+        </Link>
+        <nav className="admin-nav">
+          {NAV.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) => `admin-nav-link${isActive ? ' active' : ''}`}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="admin-sidebar-foot">
+          <p className="muted" style={{ margin: '0 0 8px', fontSize: '0.8rem' }}>
+            {user?.email}
+          </p>
+          <Button variant="ghost" onClick={toggleTheme}>
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </Button>
+          <Button variant="ghost" onClick={logout}>Sign out</Button>
+        </div>
+      </aside>
+      <div className="admin-main">
+        <Outlet />
+      </div>
+    </div>
+  )
+}

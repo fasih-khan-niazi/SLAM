@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { getConfig } from '../api/endpoints'
 
 const ConfigContext = createContext(null)
@@ -7,11 +7,19 @@ const MERCHANT_FALLBACK = '03300490019'
 export function ConfigProvider({ children }) {
   const [config, setConfig] = useState(null)
 
-  useEffect(() => {
-    getConfig()
-      .then((res) => setConfig(res.data || null))
-      .catch(() => {})
+  const refreshConfig = useCallback(async () => {
+    try {
+      const res = await getConfig()
+      setConfig(res.data || null)
+      return res.data
+    } catch {
+      return null
+    }
   }, [])
+
+  useEffect(() => {
+    refreshConfig()
+  }, [refreshConfig])
 
   const value = useMemo(() => ({
     config,
@@ -19,7 +27,8 @@ export function ConfigProvider({ children }) {
     paymentsEnabled: config?.payments_enabled !== false,
     easypaisaAccount: config?.easypaisa_account || MERCHANT_FALLBACK,
     jazzcashAccount: config?.jazzcash_account || MERCHANT_FALLBACK,
-  }), [config])
+    refreshConfig,
+  }), [config, refreshConfig])
 
   return <ConfigContext.Provider value={value}>{children}</ConfigContext.Provider>
 }

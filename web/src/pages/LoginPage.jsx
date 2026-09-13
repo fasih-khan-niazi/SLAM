@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth, homePathForUser } from '../context/AuthContext'
 import { ApiError } from '../api/client'
 import { Button } from '../components/Button'
 import { Field } from '../components/Field'
@@ -16,14 +16,25 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  if (user) return <Navigate to="/" replace />
+  if (user) {
+    const dest = location.state?.from?.startsWith('/admin') && user.role === 'admin'
+      ? location.state.from
+      : homePathForUser(user)
+    return <Navigate to={dest} replace />
+  }
 
   async function onSubmit(event) {
     event.preventDefault()
     setLoading(true)
     try {
-      await login(email.trim(), password)
-      navigate(location.state?.from || '/', { replace: true })
+      const res = await login(email.trim(), password)
+      const nextUser = res.data.user
+      const from = location.state?.from
+      if (from && (nextUser.role === 'admin' ? from.startsWith('/admin') : !from.startsWith('/admin'))) {
+        navigate(from, { replace: true })
+      } else {
+        navigate(homePathForUser(nextUser), { replace: true })
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not sign in')
     } finally {
