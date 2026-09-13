@@ -1,39 +1,27 @@
-/** Simple JazzCash-style mark for payment UI */
+/** Brand marks for JazzCash / EasyPaisa payment UI (local assets). */
+
 export function JazzCashIcon({ size = 36 }) {
   return (
-    <svg className="method-icon" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
-      <rect width="64" height="64" rx="14" fill="#E21836" />
-      <text
-        x="32"
-        y="40"
-        textAnchor="middle"
-        fill="#fff"
-        fontSize="22"
-        fontFamily="Segoe UI, sans-serif"
-        fontWeight="700"
-      >
-        JC
-      </text>
-    </svg>
+    <img
+      className="method-icon"
+      src="/payment/jazzcash.png"
+      alt=""
+      width={size}
+      height={size}
+      style={{ width: size, height: size, objectFit: 'contain', borderRadius: 8 }}
+    />
   )
 }
 
-/** Simple EasyPaisa-style mark for payment UI */
 export function EasyPaisaIcon({ size = 36 }) {
   return (
-    <svg className="method-icon" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
-      <rect width="64" height="64" rx="14" fill="#00A651" />
-      <text
-        x="32"
-        y="40"
-        textAnchor="middle"
-        fill="#fff"
-        fontSize="22"
-        fontFamily="Segoe UI, sans-serif"
-        fontWeight="700"
-      >
-        EP
-      </text>
-    </svg>
+    <img
+      className="method-icon"
+      src="/payment/easypaisa.jpg"
+      alt=""
+      width={size}
+      height={size}
+      style={{ width: size, height: size, objectFit: 'contain', borderRadius: 8 }}
+    />
   )
 }
