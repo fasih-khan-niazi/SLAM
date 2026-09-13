@@ -15,8 +15,6 @@ import { Skeleton } from '../components/Skeleton'
 import { StatusChip } from '../components/StatusChip'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 
-const MERCHANT = '03300490019'
-
 function formatDate(value) {
   if (!value) return '—'
   const date = new Date(value)
@@ -54,7 +52,7 @@ function PaymentsContent() {
   const subscriptionId = presetId || pending?.subscription_id
   const amount = presetAmount || pending?.price_pkr
   const planName = presetPlan || pending?.plan_name
-  const accountNumber = method === 'easypaisa' ? (easypaisaAccount || MERCHANT) : (jazzcashAccount || MERCHANT)
+  const accountNumber = method === 'easypaisa' ? easypaisaAccount : jazzcashAccount
 
   const timeline = useMemo(() => {
     const steps = [

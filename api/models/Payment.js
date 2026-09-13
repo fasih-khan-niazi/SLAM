@@ -44,6 +44,10 @@ const Payment = sequelize.define('Payment', {
     type: DataTypes.DATE,
     allowNull: true,
   },
+  reviewed_by: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
 }, {
   tableName: 'payments',
   timestamps: true,

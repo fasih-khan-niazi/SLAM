@@ -95,10 +95,57 @@ async function ensureSystemConfigColumns() {
     })
   }
 
+  const merchantDefault =
+    process.env.EASYPAY_ACCOUNT ||
+    process.env.JAZZCASH_ACCOUNT ||
+    process.env.PAYMENT_ACCOUNT ||
+    '03300490019'
+
+  if (!table.easypaisa_account) {
+    await qi.addColumn('system_config', 'easypaisa_account', {
+      type: DataTypes.STRING(32),
+      allowNull: true,
+      defaultValue: merchantDefault,
+    })
+  }
+  if (!table.jazzcash_account) {
+    await qi.addColumn('system_config', 'jazzcash_account', {
+      type: DataTypes.STRING(32),
+      allowNull: true,
+      defaultValue: merchantDefault,
+    })
+  }
+
   await SystemConfig.update(
     { pin_attempt_cap: 3 },
     { where: { pin_attempt_cap: 8 } }
   )
+
+  // Backfill blank merchant fields so the portal never shows empty numbers.
+  await SystemConfig.update(
+    { easypaisa_account: merchantDefault },
+    { where: { easypaisa_account: null } }
+  )
+  await SystemConfig.update(
+    { jazzcash_account: merchantDefault },
+    { where: { jazzcash_account: null } }
+  )
+}
+
+async function ensurePaymentColumns() {
+  const qi = sequelize.getQueryInterface()
+  let table
+  try {
+    table = await qi.describeTable('payments')
+  } catch {
+    return
+  }
+  if (!table.reviewed_by) {
+    await qi.addColumn('payments', 'reviewed_by', {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    })
+  }
 }
 
 async function ensureLocationLogColumns() {
@@ -173,6 +220,12 @@ async function ensureLocationLogColumns() {
 async function seedSystemConfig() {
   const count = await SystemConfig.count()
   if (count > 0) return
+  const merchantDefault =
+    process.env.EASYPAY_ACCOUNT ||
+    process.env.JAZZCASH_ACCOUNT ||
+    process.env.PAYMENT_ACCOUNT ||
+    '03300490019'
+
   await SystemConfig.create({
     sms_prefix: 'SLAM',
     pin_min_length: 4,
@@ -187,6 +240,8 @@ async function seedSystemConfig() {
     email_enabled: true,
     emergency_enabled: true,
     emergency_interval_hours: 1,
+    easypaisa_account: merchantDefault,
+    jazzcash_account: merchantDefault,
   })
 }
 
@@ -246,6 +301,7 @@ async function syncDatabase() {
     await sequelize.sync()
     console.log('Tables synced')
     await ensureSystemConfigColumns()
+    await ensurePaymentColumns()
     await ensureLocationLogColumns()
     await ensureUserPinColumns()
     await seedPlans()

@@ -39,6 +39,8 @@ class SessionStore(private val context: Context) {
     val smsPrefix: Flow<String> = accountFlow("sms_prefix", "SLAM")
     val pinMinLength: Flow<Int> = accountFlow("pin_min_length", 4)
     val pinMaxLength: Flow<Int> = accountFlow("pin_max_length", 6)
+    val maintenance: Flow<Boolean> = accountFlow("maintenance", false)
+    val paymentsEnabled: Flow<Boolean> = accountFlow("payments_enabled", true)
 
     suspend fun setConsent(accepted: Boolean) {
         context.dataStore.edit { it[KEY_CONSENT] = accepted }
@@ -81,6 +83,8 @@ class SessionStore(private val context: Context) {
         smsPrefix: String? = null,
         pinMinLength: Int? = null,
         pinMaxLength: Int? = null,
+        maintenance: Boolean? = null,
+        paymentsEnabled: Boolean? = null,
     ) {
         val cap = pinCap?.takeIf { it in 1..30 } ?: 3
         val window = windowMinutes?.takeIf { it in 1..1440 } ?: 15
@@ -96,6 +100,12 @@ class SessionStore(private val context: Context) {
                 smsPrefix?.trim()?.uppercase()?.takeIf { prefix -> prefix.matches(Regex("[A-Z0-9]{2,12}")) } ?: "SLAM"
             it[accountInt("pin_min_length")] = minPin
             it[accountInt("pin_max_length")] = maxPin
+            if (maintenance != null) {
+                it[accountBoolean("maintenance")] = maintenance
+            }
+            if (paymentsEnabled != null) {
+                it[accountBoolean("payments_enabled")] = paymentsEnabled
+            }
         }
     }
 
@@ -113,6 +123,8 @@ class SessionStore(private val context: Context) {
     suspend fun cachedSmsPrefix(): String = smsPrefix.first()
     suspend fun cachedPinMinLength(): Int = pinMinLength.first()
     suspend fun cachedPinMaxLength(): Int = pinMaxLength.first()
+    suspend fun cachedMaintenance(): Boolean = maintenance.first()
+    suspend fun cachedPaymentsEnabled(): Boolean = paymentsEnabled.first()
     suspend fun cachedPlanName(): String {
         val accountId = accountId()
         return context.dataStore.data.first()[stringPreferencesKey(scoped("plan_name", accountId))] ?: "Free"

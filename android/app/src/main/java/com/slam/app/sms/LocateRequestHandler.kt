@@ -39,12 +39,14 @@ class LocateRequestHandler(private val context: Context) {
             return@withContext
         }
 
-        val windowStart = System.currentTimeMillis() - PinLockout.WINDOW_MS
+        val windowMs = PinLockout.windowMs(context)
+        val attemptCap = PinLockout.attemptCap(context)
+        val windowStart = System.currentTimeMillis() - windowMs
         db.failedPins().deleteOlderThan(accountId, windowStart)
 
         // Per-sender only: other trusted numbers stay usable during a lockout.
         val senderFails = db.failedPins().countSinceSender(accountId, from, windowStart)
-        if (senderFails >= PinLockout.ATTEMPT_CAP) {
+        if (senderFails >= attemptCap) {
             return@withContext
         }
 
