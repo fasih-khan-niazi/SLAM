@@ -22,11 +22,20 @@ describe('publicFields', () => {
       email_enabled: true,
       emergency_enabled: true,
       emergency_interval_hours: 1,
+      emergency_interval_minutes: 60,
       easypaisa_account: '03001234567',
       jazzcash_account: '03007654321',
     })
     assert.equal(out.easypaisa_account, '03001234567')
     assert.equal(out.jazzcash_account, '03007654321')
+    assert.equal(out.emergency_interval_minutes, 60)
+  })
+
+  it('maps legacy emergency hours into minutes', () => {
+    const out = publicFields({
+      emergency_interval_hours: 2,
+    })
+    assert.equal(out.emergency_interval_minutes, 120)
   })
 
   it('falls back when merchant blank or invalid', () => {

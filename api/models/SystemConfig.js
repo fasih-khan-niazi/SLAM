@@ -67,9 +67,15 @@ const SystemConfig = sequelize.define('SystemConfig', {
     allowNull: false,
     defaultValue: true,
   },
-  emergency_interval_hours: {
+  emergency_interval_minutes: {
     type: DataTypes.INTEGER,
     allowNull: false,
+    defaultValue: 60,
+  },
+  // Legacy; kept so existing DBs can migrate. Prefer emergency_interval_minutes.
+  emergency_interval_hours: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
     defaultValue: 1,
   },
   easypaisa_account: {
