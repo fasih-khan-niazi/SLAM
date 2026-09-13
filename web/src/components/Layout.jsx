@@ -1,14 +1,18 @@
+import { useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { Logo } from './Logo'
 import { Button } from './Button'
+import { Modal } from './Modal'
 import { PageNav } from './PageNav'
+import { SignOutIcon, ThemeIcon } from './Icons'
 
 export function Layout({ children, maintenance = false }) {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
+  const [confirmOut, setConfirmOut] = useState(false)
   const hideChrome = ['/login', '/register', '/forgot-password', '/reset-password'].includes(location.pathname)
 
   if (hideChrome) {
@@ -53,11 +57,19 @@ export function Layout({ children, maintenance = false }) {
 
         <div className="topbar-side topbar-side-end">
           <nav className="nav-actions">
-            <Button variant="ghost" onClick={toggleTheme}>
-              {theme === 'dark' ? 'Light' : 'Dark'}
+            <Button variant="secondary" onClick={toggleTheme}>
+              <span className="btn-with-icon">
+                <ThemeIcon dark={theme === 'dark'} />
+                {theme === 'dark' ? 'Light' : 'Dark'}
+              </span>
             </Button>
             {user ? (
-              <Button variant="ghost" onClick={logout}>Sign out</Button>
+              <Button variant="secondary" onClick={() => setConfirmOut(true)}>
+                <span className="btn-with-icon">
+                  <SignOutIcon />
+                  Sign out
+                </span>
+              </Button>
             ) : (
               <NavLink to="/login">Sign in</NavLink>
             )}
@@ -78,6 +90,21 @@ export function Layout({ children, maintenance = false }) {
           </p>
         </div>
       </footer>
+
+      {confirmOut ? (
+        <Modal
+          title="Sign out?"
+          message="SMS tracking on the phone keeps working after you sign out of the portal."
+          confirmLabel="Sign out"
+          cancelLabel="Stay signed in"
+          danger
+          onConfirm={() => {
+            setConfirmOut(false)
+            logout()
+          }}
+          onDismiss={() => setConfirmOut(false)}
+        />
+      ) : null}
     </div>
   )
 }
