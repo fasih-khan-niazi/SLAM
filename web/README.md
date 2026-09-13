@@ -19,12 +19,13 @@ npm run dev
 ## What is here (Phase A)
 
 - Dark default, light toggle (saved in the browser)
-- Login, register, public plans
-- Account home: plan name and remaining requests (`GET /api/user/subscription` via `/api/auth/me`)
-- Custom modal, skeletons, terms page
-- `GET /api/config` for maintenance (Week 2 will drive this from admin)
+- Login, register, public plans, account dashboard
+- Choose Basic/Premium, submit JazzCash/EasyPaisa receipt, payment history
+- Custom modal, skeletons, terms page (footer + sign-in link)
+- `GET /api/config` for maintenance and payment pause (AdminJS SystemConfig)
+- Account notifications for payment submit / approve / reject
 
-Payments, Cloudinary uploads, and the map dashboard are Week 2. The API client in `src/api/endpoints.js` is where those calls will go.
+Maps stay Week 2 P2.
 
 ## Production build
 

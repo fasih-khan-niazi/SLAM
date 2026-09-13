@@ -19,7 +19,9 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Email on submit (admin) and on decision (user) | P0 |
 | Payment history for the logged-in user | P1 |
 
-**Done when:** A pending payment becomes an active 30-day subscription after admin approval.
+**Status:** API stores screenshots on Cloudinary. Submit + history + AdminJS approve/reject + emails. Portal pay UI is Phase 10.
+
+**Done when:** A pending payment becomes an active 30-day subscription after admin approval (prove once against Railway).
 
 ---
 
@@ -33,9 +35,12 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Sync subscription on launch when online | P0 |
 | Cache monthly remaining requests for offline use | P0 |
 | Block further SMS replies when cached limit is reached | P0 |
+| Stop listening (clear button; stops the foreground service) | P0 |
 | POST location log when online | P1 |
 
-**Done when:** Free plan allows 5 requests; the 6th is blocked even if the network is off (using cache).
+**Status:** Code on `dev` — usage cache, silent block at the cap, Stop listening, location log when online.
+
+**Done when:** Free plan allows 5 requests; the 6th is blocked even if the network is off (using cache). Rebuild the app to pick this up.
 
 ---
 
@@ -50,6 +55,8 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Payment history | P1 |
 | Premium location history map (Maps JavaScript API) | P2 |
 
+**Status:** Portal dashboard, plan picker, receipt upload, and payment history are in `web/`. Maps stay P2.
+
 **Done when:** Register → pick plan → submit payment → see status without touching AdminJS as a user.
 
 ---
@@ -61,12 +68,14 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Item | Priority |
 |------|----------|
 | `SystemConfig` table + AdminJS config page | P0 |
-| Public config endpoint (safe fields only) — stub is `GET /api/config`; wire to `SystemConfig` | P1 |
+| Public config endpoint (safe fields only) — `GET /api/config` reads `SystemConfig` | P1 |
 | In-app notification list API | P0 |
 | Admin notification on new payment | P1 |
 | Settings: SMS prefix, limits, maintenance, email toggle, PIN attempt cap | P0 |
 
-**Done when:** Changing a config value in admin is reflected by the API without a code deploy.
+**Status:** `SystemConfig` + AdminJS (no new/delete), `GET /api/config` reads the table, notification list API, payment submit/approve/reject create in-app alerts. Maintenance and `payments_enabled` are honored on subscribe/pay and the portal banner.
+
+**Done when:** Changing a config value in admin is reflected by the API without a code deploy. Redeploy slam-api so `/admin` CORS allows the API’s own origin.
 
 ---
 
@@ -82,21 +91,31 @@ Priorities: **P0** must ship · **P1** required for complete product · **P2** p
 | Terms page on the portal | P1 |
 | Duplicate transaction ID rejected | P0 |
 
+**Status:** Portal failed logins and SMS wrong PINs are both admin-configurable (default **3** attempts, **15** minute windows, separate fields). Helmet + CORS were already on; `/admin` now reflects its own Origin so localhost / 127.0.0.1 / Railway can sign in. JWT expiry stays 7 days. Duplicate transaction IDs were already rejected. Terms are on `/terms`.
+
 **Done when:** Unauthenticated API calls return 401; consent must be accepted before tracking is enabled.
 
 ---
 
-## Phase 13 — Release
+## Phase 13 — Close Week 2
 
-**Goal:** Hourly emergency updates, optional stealth, production deploy, handover.
+**Goal:** SLAM admin home, plan-capped trusted numbers, working emergency SMS. Detail: [phase-13.md](phase-13.md).
 
-| Item | Priority |
-|------|----------|
-| Emergency mode: location SMS every 60 minutes while active | P2 |
-| Stealth: hide launcher icon (last days only) | P3 |
-| UI pass: empty states, errors, haptics, dark/light | P1 |
-| Release APK | P0 |
-| Deploy `slam-api` + `slam-web` on Railway | P0 |
-| Handover notes in `docs/handover.md` | P1 |
+| Item | Priority | Now? |
+|------|----------|------|
+| Replace AdminJS default home (Discord / GitHub / rocket) | P0 | **This slice** |
+| Navigation name “SLAM” (not the Railway MySQL host) | P0 | **This slice** |
+| Enforce trusted-number cap from the plan | P0 | **This slice** |
+| Emergency: admin interval 1–24 hours, SMS from the phone (no cron) | P0 | **This slice** |
+| Light UI pass on those surfaces | P1 | **This slice** |
+| Stealth: hide launcher icon | P3 | **Parked** (clients first) |
+| Premium Maps UI on the portal | P2 | **Parked** |
+| First-run consent + silent locate guard | — | **Already done** (Phase 12) |
+| Release APK (signed, not debug) | P0 | **This PC** — see [android/README.md](../android/README.md) §6 |
+| Deploy slam-web | P0 | **Parked** |
+| Handover notes `docs/handover.md` | P1 | **Parked** |
+| Merge `dev` → `main` so Railway `/admin` CORS ships | P0 | Process, when you PR |
 
-**Done when:** Testers can install the APK, use the portal, and admins can operate `/admin` on the public API URL.
+**Status:** Custom SLAM admin home + navigation, trusted-number cap on the phone, emergency SMS (admin interval 1–24 hours, no cron). Signed release APK is wired on this PC. Stealth, Maps, slam-web, handover stay parked.
+
+**Done when (this slice):** `/admin` is SLAM-branded; Free cannot add a second trusted number; emergency texts trusted numbers on the admin interval.

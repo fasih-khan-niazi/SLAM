@@ -17,6 +17,17 @@ function createTransporter() {
 const transporter = createTransporter()
 
 async function sendEmail(to, subject, text) {
+  try {
+    const { getSystemConfig } = require('./config')
+    const config = await getSystemConfig()
+    if (!config.email_enabled) {
+      console.warn('Email skipped: disabled in system config')
+      return
+    }
+  } catch (_err) {
+    // Still try to send if config cannot be read.
+  }
+
   if (!transporter) {
     console.warn('Email skipped: EMAIL_USER or EMAIL_PASS is not set')
     return

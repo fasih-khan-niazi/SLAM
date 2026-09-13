@@ -71,6 +71,10 @@ Expect `database: connected` and Free / Basic / Premium. Then run the register �
 Admin: `https://<slam-api-domain>/admin`  
 `admin@slam.com` / `Password123`
 
+The admin login is a browser POST from that same API URL. `/admin` reflects the request Origin (localhost, 127.0.0.1, and the Railway host all work). Set `API_PUBLIC_URL` to the public domain for emails and portal CORS.
+
+**slam-api must be on a commit that includes this `/admin` CORS change.** If the service tracks `main` and the fix is only on `dev`, `/admin` still returns `Origin not allowed` until you merge and Railway redeploys.
+
 ---
 
 ## 2. Create `slam-web` (after the portal exists)
@@ -103,10 +107,12 @@ npm run preview
 
 ## 3. Phone against Railway
 
-On login / register, set **API URL** to `https://<slam-api-domain>` (no path). SMS still runs only on the device.
+The Android app has **no API URL field**. `BuildConfig.API_BASE_URL` is the Railway API. SMS still runs only on the device.
 
-Debug APK: Android Studio → **Build → Build Bundle(s) / APK(s) → Build APK(s)**.  
-Output: `android/app/build/outputs/apk/debug/app-debug.apk` (gitignored).
+**Do not send `app-debug.apk`.** Play Protect blocks that file for clients. Signed release APK:
+
+Android Studio → **Build → Generate Signed App Bundle or APK → APK**, keystore `android/slam-release.jks` (see [android/README.md](../android/README.md) section 6).  
+Output: `android/app/build/outputs/apk/release/app-release.apk` (gitignored). Rename the copy you send to `SLAM.apk`.
 
 ---
 

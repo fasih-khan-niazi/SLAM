@@ -33,7 +33,7 @@ const Payment = sequelize.define('Payment', {
     unique: true,
   },
   screenshot_url: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(1024),
     allowNull: true,
   },
   status: {

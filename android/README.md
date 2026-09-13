@@ -87,7 +87,7 @@ If install is blocked: phone → **Install anyway** / allow the computer.
 
 ## 5. What to do in the app (in order)
 
-1. **Consent** — tick both boxes → Continue.
+1. **Consent** — tick both boxes → Continue. Tracking stays off until you accept.
 2. **Login**
    - Email and password only. The app talks to the deployed API (no URL field).
    - Login needs internet on the phone. SMS tracking does not.
@@ -95,7 +95,9 @@ If install is blocked: phone → **Install anyway** / allow the computer.
 3. **Home**
    - **Tracking PIN** — enter 4–6 digits → **Save PIN**. Remember it.
    - **Allow SMS and location** — Allow all (SMS, location, notifications).
-   - **Keep listening** — a persistent notification “Listening for location requests” should appear. Leave it on.
+   - **Start listening** — a persistent notification “Listening for location requests” should appear.
+   - **Stop listening** — notification goes away; SLAM texts are ignored until you start again. Emergency stops too.
+   - **Emergency** — add at least one trusted number, start listening, then Start emergency. The first location SMS goes now; the next one follows the admin interval (default 1 hour).
 4. **SMS test (two SIMs on this phone)**
    - SIM 1 = the SLAM number (the one the app is on).
    - SIM 2 = the tracker.
@@ -105,11 +107,11 @@ If install is blocked: phone → **Install anyway** / allow the computer.
      SLAM 1234 LOCATE
      ```
 
-     Replace `1234` with the PIN you saved.
+     Replace `1234` with the PIN you saved. A wrong PIN gets no reply. After 3 wrong PINs in 15 minutes (or whatever AdminJS → SystemConfig sets for SMS PIN), locates stay silent until the window ends or you update the PIN in Settings.
    - Wait up to ~30 seconds. SIM 2 should get a reply with coordinates. Wrong PIN = **no** reply (logged on device).
 5. **Settings** (from Home)
    - Change PIN (current PIN required).
-   - Trusted numbers: empty list = anyone with the PIN; once you add a number, only those numbers get a reply.
+   - Trusted numbers: empty list = anyone with the PIN; once you add a number, only those numbers get a reply. The plan cap is enforced (Free 1, Basic 5, Premium 20).
    - Prefer battery: skip GPS-first (also automatic below 15% battery).
    - Recent locations: last 10 replies stored on this phone.
 
@@ -120,11 +122,44 @@ Oppo may kill background apps. If SMS never wakes SLAM:
 
 ---
 
-## 6. Generate an APK to send later
+## 6. APK for clients (not the debug file)
 
-**Build → Build Bundle(s) / APK(s) → Build APK(s).**  
-Output: `android/app/build/outputs/apk/debug/app-debug.apk`  
-(That folder is gitignored; you send the file yourself.)
+**Do not send `app-debug.apk`.** That is what Play Protect blocked. Studio **Run** still works on your Oppo because USB/ADB install is not the same as a WhatsApp download.
+
+### Build a signed release APK
+
+One-time on this PC: `android/slam-release.jks` and `android/keystore.properties` (gitignored). Copy both somewhere safe (USB / Drive, not GitHub). If you lose them, every client must uninstall SLAM before installing a new APK.
+
+If this phone already has SLAM from Android Studio **Run**, uninstall it first. Debug and release use different signatures.
+
+In Android Studio (`F:\SLAM\android`):
+
+**Easiest now that signing is wired:** left **Build Variants** → **app** → **release** → **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
+
+Or: **Build → Generate Signed App Bundle or APK → APK**, keystore `F:\SLAM\android\slam-release.jks` (passwords in `keystore.properties` on this PC), **release**, **Finish**.
+
+Output: `android/app/build/outputs/apk/release/app-release.apk`  
+Rename the copy you send to **`SLAM.apk`**. Prefer Google Drive or email; WhatsApp is the path Play Protect watches most.
+
+Gradle panel: **app → Tasks → build → assembleRelease**.
+
+### What clients do when Play Protect still warns
+
+Sideloaded apps that use SMS + location often still get a warning. That is Google, not a virus in SLAM. Ask them to:
+
+1. Save **SLAM.apk** to **Downloads** (not Install from the WhatsApp chat).
+2. **Play Store → profile photo → Play Protect → Settings (gear) → Scan apps with Play Protect → Off.**
+3. **Settings → Apps → Special app access → Install unknown apps → Files / My Files → Allow.**
+4. Open **Files**, tap **SLAM.apk**, Install.
+5. Turn **Play Protect scanning back On** after it installs.
+
+On Oppo: **Install via USB** is only for your cable. Clients need **Install unknown apps** for Files.
+
+You can paste this to a client:
+
+> Save SLAM.apk to Downloads (don’t tap Install inside WhatsApp). Play Store → profile → Play Protect → gear → turn Scan apps off. Then Files app → SLAM.apk → Install. Turn Play Protect scanning back on after it installs.
+
+Play Store listing is **not** a good fix for SLAM: Google almost never allows `RECEIVE_SMS` / `SEND_SMS` except for the default SMS app.
 
 ---
 

@@ -30,7 +30,7 @@ Expect Free, Basic, Premium.
 Invoke-RestMethod "$base/api/config"
 ```
 
-Expect `sms_prefix: SLAM` and `maintenance: false`.
+Expect `sms_prefix: SLAM`, `maintenance: false`, `payments_enabled: true`, `login_attempt_cap: 3`, `pin_attempt_cap: 3`, `emergency_enabled: true`, and `emergency_interval_hours: 1`. These come from the `system_config` row (AdminJS → Product settings). Portal login, SMS PIN, and emergency are separate fields.
 
 ## 3. Register
 
@@ -73,12 +73,22 @@ Expect `allowed: true`.
 
 ```powershell
 Invoke-RestMethod -Method Post "$base/api/location/log" -Headers $headers -ContentType "application/json" -Body (@{
+  event_id = [guid]::NewGuid().ToString()
   latitude = 33.6844
   longitude = 73.0479
   accuracy = "HIGH"
+  accuracy_meters = 8.5
+  source = "CURRENT"
+  provider = "fused"
+  captured_at = (Get-Date).ToUniversalTime().ToString("o")
   requested_by = "03009876543"
 } | ConvertTo-Json)
 ```
+
+`event_id` is required and makes retries idempotent: resending the same event
+returns it with `idempotent: true` and does not consume quota again. `source`
+must be `CURRENT` or `LAST_KNOWN`. Coordinates and numeric accuracy are
+validated before the event and quota increment are committed together.
 
 ## 8. History on Free (should be blocked)
 
@@ -113,9 +123,38 @@ try {
 
 Expect `401`.
 
+## 13. Login rate limit (Phase 12)
+
+Three **failed** portal sign-ins from the same IP (default) return `429`. The count and window come from SystemConfig (`login_attempt_cap`, `login_window_minutes`). A successful sign-in clears the count. Register is still capped at 8 posts per 15 minutes.
+
+Duplicate `transaction_id` on `POST /api/payments/submit` still returns `400`.
+
 ## Admin panel
 
 Browser: http://localhost:3000/admin  
 `admin@slam.com` / `Password123`
 
-Payments and Cloudinary are **Phase 8**. Do not wait on those to finish Phase 2.
+## 11. Payment submit (Phase 8)
+
+Needs a JWT and `CLOUDINARY_URL`. Create a paid subscription first (`POST /api/subscribe` with Basic or Premium `plan_id`), then:
+
+```powershell
+$form = @{
+  subscription_id = "<id>"
+  payment_method = "jazzcash"
+  transaction_id = "JC-TEST-001"
+}
+# Attach screenshot as multipart field name "screenshot" (JPG/PNG).
+```
+
+Then `/admin` → Payments → open the record (Cloudinary URL) → Approve. User gets email plus an in-app notification; plan becomes active.
+
+`GET /api/payments/my` lists that user’s history.
+
+## 12. Notifications (Phase 11)
+
+```powershell
+Invoke-RestMethod "$base/api/notifications" -Headers $headers
+```
+
+Expect `notifications` (may be empty until a payment is submitted).

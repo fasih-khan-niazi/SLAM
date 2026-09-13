@@ -85,15 +85,16 @@ copy .env.example .env
 | `NODE_ENV` | api, web | `development` on PC, `production` on Railway |
 | `PORT` | api | Local: `3000`. Railway injects this — do not set it on the service |
 | `JWT_SECRET` | api | Random 32+ character string |
+| `JWT_EXPIRES_IN` | api | Optional. Default `7d`. jsonwebtoken duration string. |
 | `SESSION_SECRET` | api | Different random 32+ character string |
 | `ADMIN_EMAIL` | api | `admin@slam.com` |
 | `ADMIN_PASSWORD` | api | `Password123` |
 | `EMAIL_USER` | api | Gmail address used for outbound mail |
 | `EMAIL_PASS` | api | Google Account → Security → 2-Step Verification → **App passwords** (16 characters, not the Gmail login password) |
-| `CLOUDINARY_URL` | api | Cloudinary dashboard → API environment variable |
+| `CLOUDINARY_URL` | api | Cloudinary dashboard → API environment variable. Required for payment screenshots (Phase 8). Same value on Railway `slam-api`. |
 | `FRONTEND_URL` | api | After deploy: `slam-web` public domain. Local: `http://localhost:5173` |
 | `CORS_ORIGINS` | api | Optional extra browser origins, comma-separated |
-| `API_PUBLIC_URL` | api | After deploy: `slam-api` public domain (used in admin emails). Local: `http://localhost:3000` |
+| `API_PUBLIC_URL` | api | After deploy: `slam-api` public domain (admin emails + CORS allowlist). Local: `http://localhost:3000` |
 | `VITE_API_BASE_URL` | web | Local: `http://localhost:3000`. Production: `slam-api` public domain (build-time) |
 | `VITE_GOOGLE_MAPS_API_KEY` | web | Google Cloud → Credentials → Maps JavaScript API key (HTTP referrer restricted) |
 
