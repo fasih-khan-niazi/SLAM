@@ -39,3 +39,8 @@ web/.vite/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+
+SLAM_Doc_vs_Project_Gap.md
+SLAM_Documentation_Formatted.docx
+android/keystore.properties
