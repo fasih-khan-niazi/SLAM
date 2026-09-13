@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { ApiError } from '../api/client'
 import { Button } from '../components/Button'
@@ -10,6 +10,7 @@ import { Modal } from '../components/Modal'
 export function LoginPage() {
   const { user, login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -22,7 +23,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login(email.trim(), password)
-      navigate('/', { replace: true })
+      navigate(location.state?.from || '/', { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not sign in')
     } finally {
@@ -32,15 +33,24 @@ export function LoginPage() {
 
   return (
     <main className="page page-narrow">
-      <div style={{ color: 'var(--primary)', marginBottom: 16 }}><Logo size={40} /></div>
+      <div className="auth-brand">
+        <span style={{ color: 'var(--primary)' }}><Logo size={48} /></span>
+        <div>
+          <h2>SLAM</h2>
+          <p>Secure location by SMS</p>
+        </div>
+      </div>
       <h1>Welcome back</h1>
-      <p className="lede">Sign in to manage your plan. Tracking still works over SMS without a browser.</p>
+      <p className="lede">Sign in to manage your plan and payments.</p>
       <form className="stack-lg" style={{ marginTop: 28 }} onSubmit={onSubmit}>
         <Field id="email" label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" required />
         <Field id="password" label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" required />
         <Button type="submit" loading={loading} block>Sign in</Button>
       </form>
       <p className="muted" style={{ marginTop: 16 }}>
+        <Link to="/forgot-password">Forgot password?</Link>
+      </p>
+      <p className="muted">
         New here? <Link to="/register">Create an account</Link>
         {' · '}
         <Link to="/terms">Terms</Link>
