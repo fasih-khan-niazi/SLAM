@@ -554,9 +554,9 @@ fun HomeScreen(
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 if (state.emergencyOn) {
-                                    "Sending to trusted numbers every ${state.emergencyHours} hour${if (state.emergencyHours == 1) "" else "s"}."
+                                    "Sending to trusted numbers every ${state.emergencyMinutes} minute${if (state.emergencyMinutes == 1) "" else "s"}."
                                 } else {
-                                    "Timed updates to trusted numbers every ${state.emergencyHours} hour${if (state.emergencyHours == 1) "" else "s"}."
+                                    "Timed updates to trusted numbers every ${state.emergencyMinutes} minute${if (state.emergencyMinutes == 1) "" else "s"}."
                                 },
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -593,7 +593,7 @@ fun HomeScreen(
                                             else -> {
                                                 EmergencyPrefs(context).setOn(true)
                                                 EmergencyScheduler.pingNow(context)
-                                                EmergencyScheduler.start(context, store.cachedEmergencyHours())
+                                                EmergencyScheduler.start(context, store.cachedEmergencyMinutes())
                                                 emergencyNote = null
                                                 toast.show("Emergency started", SlamToastTone.SUCCESS)
                                                 viewModel.refreshDeviceState()

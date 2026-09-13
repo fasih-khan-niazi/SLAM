@@ -1,4 +1,5 @@
 const { sendEmail } = require('./email')
+const { paymentApprovedEmail, paymentRejectedEmail } = require('./emailTemplates')
 const { notifyUser } = require('./notify')
 const { cancelOtherActiveSubscriptions } = require('./subscription')
 const { Payment, Subscription, SubscriptionPlan, User } = require('../models')
@@ -49,16 +50,11 @@ async function approvePayment(paymentId, reviewerEmail) {
       `Your ${payment.plan ? payment.plan.name : ''} plan is now active.`,
       'payment',
     )
-    await sendEmail(
-      payment.User.email,
-      'Your SLAM subscription is active',
-      `Hi ${payment.User.name},\n\n` +
-      `Your payment was approved. The ${payment.plan ? payment.plan.name : ''} plan is now active.\n\n` +
-      `Plan: ${payment.plan ? payment.plan.name : ''}\n` +
-      `Amount: Rs. ${payment.amount_pkr}\n` +
-      `Valid until: ${endDate.toDateString()}\n\n` +
-      `Open the SLAM app to use your plan.\n`
-    )
+    const mail = paymentApprovedEmail({
+      userName: payment.User.name,
+      planName: payment.plan ? payment.plan.name : 'paid plan',
+    })
+    await sendEmail(payment.User.email, mail.subject, mail.text, mail.html)
   }
 
   return {
@@ -99,13 +95,11 @@ async function rejectPayment(paymentId, reviewerEmail) {
       `We could not verify transaction ${payment.transaction_id}.`,
       'payment',
     )
-    await sendEmail(
-      payment.User.email,
-      'SLAM payment could not be verified',
-      `Hi ${payment.User.name},\n\n` +
-      `We could not verify the payment with transaction ID ${payment.transaction_id}.\n\n` +
-      `Check the ID and submit again, or contact support if this looks wrong.\n`
-    )
+    const mail = paymentRejectedEmail({
+      userName: payment.User.name,
+      planName: payment.plan ? payment.plan.name : 'paid plan',
+    })
+    await sendEmail(payment.User.email, mail.subject, mail.text, mail.html)
   }
 
   return {

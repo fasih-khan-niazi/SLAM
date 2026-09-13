@@ -87,9 +87,8 @@ copy .env.example .env
 | `JWT_SECRET` | api | Random 32+ character string |
 | `JWT_EXPIRES_IN` | api | Optional. Default `7d`. jsonwebtoken duration string. |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | api | Seeded operator account (web portal `/admin`) |
-| `ADMIN_EMAIL` | api | `admin@slam.com` |
-| `ADMIN_PASSWORD` | api | `Password123` |
-| `EMAIL_USER` | api | Gmail address used for outbound mail |
+| `ADMIN_EMAIL` | api | Also used as a fallback inbox for payment-review emails (all `role: admin` users are emailed too) |
+| `EMAIL_USER` | api | Gmail address used for outbound mail (e.g. project Gmail) |
 | `EMAIL_PASS` | api | Google Account → Security → 2-Step Verification → **App passwords** (16 characters, not the Gmail login password) |
 | `CLOUDINARY_URL` | api | Cloudinary dashboard → API environment variable. Required for payment screenshots (Phase 8). Same value on Railway `slam-api`. |
 | `FRONTEND_URL` | api | After deploy: `slam-web` public domain. Local: `http://localhost:5173` |

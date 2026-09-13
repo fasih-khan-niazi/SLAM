@@ -19,7 +19,7 @@ object SessionWarmup {
                     config?.pinAttemptCap,
                     config?.pinWindowMinutes,
                     config?.emergencyEnabled,
-                    config?.emergencyIntervalHours,
+                    config?.resolvedEmergencyMinutes(),
                     config?.smsPrefix,
                     config?.pinMinLength,
                     config?.pinMaxLength,

@@ -22,9 +22,9 @@ class EmergencyWorker(
                 inputData.getString(KEY_RUN_ID) ?: id.toString(),
             )
             if (EmergencyPrefs(applicationContext).isOn()) {
-                val hours = SessionStore(applicationContext).cachedEmergencyHours().toLong()
+                val minutes = SessionStore(applicationContext).cachedEmergencyMinutes().toLong()
                 EmergencyPrefs(applicationContext).setNextRun(
-                    System.currentTimeMillis() + TimeUnit.HOURS.toMillis(hours),
+                    System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(minutes.coerceIn(15L, 24L * 60L)),
                 )
             }
             Result.success()

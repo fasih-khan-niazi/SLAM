@@ -11,6 +11,11 @@ import { Modal } from '../components/Modal'
 import { Skeleton } from '../components/Skeleton'
 import { StatusChip } from '../components/StatusChip'
 
+function pendingCtaLabel(status) {
+  if (status === 'pending_approval') return 'Check payment status'
+  return 'Continue to payment'
+}
+
 function limitLabel(plan) {
   if (plan.monthly_limit == null) return 'Unlimited SMS locates each month'
   return `${plan.monthly_limit} SMS locates each month`
@@ -120,7 +125,9 @@ export function PlansPage() {
                   <div style={{ marginTop: 16 }}>
                     <StatusChip tone="warning">Payment in progress</StatusChip>
                     <div style={{ marginTop: 12 }}>
-                      <Button onClick={() => navigate('/payments')} block>Continue payment</Button>
+                      <Button onClick={() => navigate('/payments')} block>
+                        {pendingCtaLabel(pending.status)}
+                      </Button>
                     </div>
                   </div>
                 ) : null}

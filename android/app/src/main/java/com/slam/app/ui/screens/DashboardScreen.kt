@@ -139,7 +139,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                         config.pinAttemptCap,
                         config.pinWindowMinutes,
                         config.emergencyEnabled,
-                        config.emergencyIntervalHours,
+                        config.resolvedEmergencyMinutes(),
                         config.smsPrefix,
                         config.pinMinLength,
                         config.pinMaxLength,

@@ -21,7 +21,10 @@ export function AdminLocationLogsPage() {
     <div className="admin-page">
       <p className="eyebrow">Operations</p>
       <h1>Location logs</h1>
-      <p className="lede">Read-only cloud history synced from phones.</p>
+      <p className="lede">
+        Read-only cloud history synced from phones. IDs are database auto-increment values —
+        gaps (for example 13 then 15) are normal when a write rolled back or a row was deleted; nothing is filtered out by ID.
+      </p>
 
       {error ? <Banner tone="danger" title="Error" message={error} /> : null}
 

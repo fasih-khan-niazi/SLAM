@@ -58,7 +58,7 @@ A cron on slam-api would only make sense if the **server** were sending SMS (a p
 | Field | Meaning | Default | Range |
 |-------|---------|---------|-------|
 | `emergency_enabled` | Allow the phone to offer Emergency | `true` | on/off |
-| `emergency_interval_hours` | Hours between automatic location SMS | `1` | integer **1–24** |
+| `emergency_interval_minutes` | Minutes between automatic location SMS | `60` | integer **15–1440** (Android WorkManager minimum is 15) |
 
 Max **24** hours (once a day). Min **1** hour as you asked. Integer only.
 

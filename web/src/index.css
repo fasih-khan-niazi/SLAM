@@ -368,6 +368,12 @@ h1 {
   transition: opacity 160ms ease-out, transform 160ms ease-out;
 }
 
+.btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 a.btn:hover {
   text-decoration: none;
   color: var(--on-primary);
@@ -718,7 +724,10 @@ a.btn:hover {
 }
 
 .admin-nav-link {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   padding: 10px 12px;
   border-radius: 999px;
   color: var(--text-muted);

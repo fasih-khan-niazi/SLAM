@@ -1,7 +1,8 @@
 const express = require('express')
 const multer = require('multer')
 const { protect } = require('../middleware/auth')
-const { sendEmail } = require('../utils/email')
+const { sendEmailToAdmins } = require('../utils/email')
+const { paymentSubmittedEmail } = require('../utils/emailTemplates')
 const { isConfigured, uploadPaymentScreenshot } = require('../utils/cloudinary')
 const { getSystemConfig } = require('../utils/config')
 const { notifyAdmins, notifyUser } = require('../utils/notify')
@@ -100,7 +101,6 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
 
     await subscription.update({ status: 'pending_approval' })
 
-    const adminInbox = process.env.ADMIN_EMAIL
     const portalBase = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
 
     await notifyAdmins(
@@ -115,20 +115,17 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
       'payment',
     )
 
-    if (adminInbox) {
-      await sendEmail(
-        adminInbox,
-        'SLAM — new payment to review',
-        `A payment was submitted and needs review.\n\n` +
-        `User: ${req.user.name} (${req.user.email})\n` +
-        `Plan: ${subscription.plan.name}\n` +
-        `Amount: Rs. ${subscription.plan.price_pkr}\n` +
-        `Method: ${payment_method}\n` +
-        `Transaction ID: ${transaction_id}\n` +
-        `Screenshot: ${screenshotUrl}\n\n` +
-        `Admin portal: ${portalBase}/admin/payments`
-      )
-    }
+    const mail = paymentSubmittedEmail({
+      userName: req.user.name,
+      userEmail: req.user.email,
+      planName: subscription.plan.name,
+      amountPkr: subscription.plan.price_pkr,
+      paymentMethod: payment_method,
+      transactionId: transaction_id,
+      screenshotUrl,
+      reviewUrl: `${portalBase}/admin/payments`,
+    })
+    await sendEmailToAdmins(mail.subject, mail.text, mail.html)
 
     return ok(
       res,
