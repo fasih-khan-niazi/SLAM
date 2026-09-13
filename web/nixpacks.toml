@@ -1,5 +1,13 @@
+[variables]
+# Vite lives in devDependencies; Railway sets NODE_ENV=production during install.
+NPM_CONFIG_PRODUCTION = "false"
+NIXPACKS_NODE_VERSION = "20"
+
 [phases.setup]
 nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm ci --include=dev"]
 
 [phases.build]
 cmds = ["npm run build"]
