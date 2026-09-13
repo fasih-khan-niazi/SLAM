@@ -77,15 +77,28 @@ async function ensureSystemConfigColumns() {
     ['login_attempt_cap', 3],
     ['login_window_minutes', 15],
     ['emergency_interval_hours', 1],
+    ['emergency_interval_minutes', 60],
   ]
   for (const [name, defaultValue] of intColumns) {
     if (!table[name]) {
       await qi.addColumn('system_config', name, {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: name === 'emergency_interval_hours' ? true : false,
         defaultValue,
       })
     }
+  }
+
+  // One-time style migrate: if minutes still at default seed and hours is set, prefer hours*60.
+  try {
+    await sequelize.query(
+      `UPDATE system_config
+       SET emergency_interval_minutes = GREATEST(15, LEAST(1440, COALESCE(emergency_interval_hours, 1) * 60))
+       WHERE emergency_interval_minutes IS NULL
+          OR (emergency_interval_minutes = 60 AND emergency_interval_hours IS NOT NULL AND emergency_interval_hours <> 1)`
+    )
+  } catch (err) {
+    console.warn('emergency minutes migrate:', err.message)
   }
   if (!table.emergency_enabled) {
     await qi.addColumn('system_config', 'emergency_enabled', {
@@ -239,6 +252,7 @@ async function seedSystemConfig() {
     maps_enabled: false,
     email_enabled: true,
     emergency_enabled: true,
+    emergency_interval_minutes: 60,
     emergency_interval_hours: 1,
     easypaisa_account: merchantDefault,
     jazzcash_account: merchantDefault,
