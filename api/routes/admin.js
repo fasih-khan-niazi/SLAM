@@ -18,6 +18,15 @@ const {
   LocationLog,
   SystemConfig,
 } = require('../models')
+const {
+  ACCOUNT_ACTIVE,
+  ACCOUNT_SUSPENDED,
+  ACCOUNT_DEACTIVATED,
+  normalizeAccountStatus,
+  pauseActiveSubscriptions,
+  resumePausedSubscriptions,
+} = require('../utils/accountStatus')
+const { ensureActiveSubscription } = require('../utils/subscription')
 
 const router = express.Router()
 
@@ -30,6 +39,7 @@ function publicAdminUser(user) {
     email: user.email,
     phone: user.phone,
     role: user.role,
+    account_status: user.account_status || 'active',
     created_at: user.createdAt,
   }
 }
@@ -336,6 +346,9 @@ router.get('/users', async (req, res) => {
   try {
     const where = {}
     if (req.query.role) where.role = String(req.query.role)
+    if (req.query.account_status) {
+      where.account_status = normalizeAccountStatus(req.query.account_status)
+    }
     if (req.query.q) {
       const q = `%${String(req.query.q).trim()}%`
       where[Op.or] = [
@@ -356,55 +369,106 @@ router.get('/users', async (req, res) => {
   }
 })
 
-router.patch('/users/:id', async (req, res) => {
+function assertMutableTarget(actor, target) {
+  if (!target) {
+    const err = new Error('User not found')
+    err.status = 404
+    throw err
+  }
+  if (target.role === 'admin') {
+    const err = new Error('Cannot change admin accounts this way')
+    err.status = 400
+    throw err
+  }
+  if (target.id === actor.id) {
+    const err = new Error('Cannot change your own account status')
+    err.status = 400
+    throw err
+  }
+}
+
+router.post('/users/:id/suspend', async (req, res) => {
   try {
     const user = await User.findByPk(req.params.id)
-    if (!user) return fail(res, 404, 'User not found')
-
-    const body = req.body || {}
-    const fields = {}
-    if (body.name != null) fields.name = String(body.name).trim()
-    if (body.email != null) fields.email = String(body.email).trim().toLowerCase()
-    if (body.phone != null) fields.phone = String(body.phone).trim()
-    if (body.role != null) {
-      if (!['user', 'admin'].includes(body.role)) {
-        return fail(res, 400, 'role must be user or admin')
-      }
-      if (user.role === 'admin' && body.role !== 'admin') {
-        const admins = await User.count({ where: { role: 'admin' } })
-        if (admins <= 1) {
-          return fail(res, 400, 'Cannot demote the last admin account')
-        }
-      }
-      fields.role = body.role
+    assertMutableTarget(req.user, user)
+    if (normalizeAccountStatus(user.account_status) === ACCOUNT_DEACTIVATED) {
+      return fail(res, 400, 'Reactivate this account before suspending it')
     }
-
-    await user.update(fields)
-    return ok(res, 'User updated', { user: publicAdminUser(user) })
+    if (normalizeAccountStatus(user.account_status) === ACCOUNT_SUSPENDED) {
+      return ok(res, 'Account already suspended', { user: publicAdminUser(user) })
+    }
+    await user.update({ account_status: ACCOUNT_SUSPENDED })
+    await pauseActiveSubscriptions(user.id)
+    return ok(res, 'Account suspended. Login and live subscriptions are paused.', {
+      user: publicAdminUser(user),
+    })
   } catch (err) {
-    if (err.name === 'SequelizeUniqueConstraintError') {
-      return fail(res, 400, 'Email is already in use')
-    }
-    console.error('Admin user patch error:', err)
-    return fail(res, 500, 'Unable to update user')
+    console.error('Admin suspend error:', err)
+    return fail(res, err.status || 500, err.message || 'Unable to suspend user')
   }
 })
 
-router.delete('/users/:id', async (req, res) => {
+router.post('/users/:id/unsuspend', async (req, res) => {
   try {
     const user = await User.findByPk(req.params.id)
-    if (!user) return fail(res, 404, 'User not found')
-    if (user.role === 'admin') {
-      return fail(res, 400, 'Cannot delete admin accounts')
+    assertMutableTarget(req.user, user)
+    if (normalizeAccountStatus(user.account_status) !== ACCOUNT_SUSPENDED) {
+      return fail(res, 400, 'Account is not suspended')
     }
-    if (user.id === req.user.id) {
-      return fail(res, 400, 'Cannot delete your own account')
+    await user.update({ account_status: ACCOUNT_ACTIVE })
+    await resumePausedSubscriptions(user.id)
+    try {
+      await ensureActiveSubscription(user.id)
+    } catch (err) {
+      console.warn('ensureActiveSubscription after unsuspend:', err.message)
     }
-    await user.destroy()
-    return ok(res, 'User deleted', { id: Number(req.params.id) })
+    await user.reload()
+    return ok(res, 'Account unsuspended. Subscriptions resumed where paused.', {
+      user: publicAdminUser(user),
+    })
   } catch (err) {
-    console.error('Admin user delete error:', err)
-    return fail(res, 500, 'Unable to delete user')
+    console.error('Admin unsuspend error:', err)
+    return fail(res, err.status || 500, err.message || 'Unable to unsuspend user')
+  }
+})
+
+router.post('/users/:id/deactivate', async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id)
+    assertMutableTarget(req.user, user)
+    if (normalizeAccountStatus(user.account_status) === ACCOUNT_DEACTIVATED) {
+      return ok(res, 'Account already deactivated', { user: publicAdminUser(user) })
+    }
+    await user.update({ account_status: ACCOUNT_DEACTIVATED })
+    await pauseActiveSubscriptions(user.id)
+    return ok(res, 'Account deactivated (soft). Login and usage are blocked.', {
+      user: publicAdminUser(user),
+    })
+  } catch (err) {
+    console.error('Admin deactivate error:', err)
+    return fail(res, err.status || 500, err.message || 'Unable to deactivate user')
+  }
+})
+
+router.post('/users/:id/reactivate', async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id)
+    assertMutableTarget(req.user, user)
+    if (normalizeAccountStatus(user.account_status) !== ACCOUNT_DEACTIVATED) {
+      return fail(res, 400, 'Account is not deactivated')
+    }
+    await user.update({ account_status: ACCOUNT_ACTIVE })
+    await resumePausedSubscriptions(user.id)
+    try {
+      await ensureActiveSubscription(user.id)
+    } catch (err) {
+      console.warn('ensureActiveSubscription after reactivate:', err.message)
+    }
+    await user.reload()
+    return ok(res, 'Account reactivated.', { user: publicAdminUser(user) })
+  } catch (err) {
+    console.error('Admin reactivate error:', err)
+    return fail(res, err.status || 500, err.message || 'Unable to reactivate user')
   }
 })
 
@@ -455,6 +519,7 @@ router.patch('/subscriptions/:id', async (req, res) => {
         'pending_payment',
         'pending_approval',
         'active',
+        'paused',
         'expired',
         'cancelled',
       ]
