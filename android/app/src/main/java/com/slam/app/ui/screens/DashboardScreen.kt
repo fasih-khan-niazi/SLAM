@@ -143,6 +143,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                         config.smsPrefix,
                         config.pinMinLength,
                         config.pinMaxLength,
+                        config.maintenance,
+                        config.paymentsEnabled,
                     )
                 }
 
@@ -152,7 +154,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                         loading = false,
                         offline = true,
                         pendingOutbox = pendingAfterFlush,
-                        maintenance = config?.maintenance == true,
+                        maintenance = config?.maintenance == true || session.cachedMaintenance(),
                     )
                     return@launch
                 }
@@ -187,7 +189,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     remaining = remainingAfter.takeUnless { it == Int.MAX_VALUE },
                     limit = live?.monthlyLimit,
                     offline = false,
-                    maintenance = config?.maintenance == true,
+                    maintenance = config?.maintenance == true ||
+                        (config == null && session.cachedMaintenance()),
                     pendingOutbox = pendingAfterFlush,
                 )
             } catch (_: Exception) {

@@ -90,6 +90,7 @@ app.use((req, res, next) => {
 })
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+app.use(express.static(path.join(__dirname, 'public')))
 
 app.get('/', (req, res) => {
   res.json({ success: true, message: 'SLAM API is running', version: '1.0.0' })
@@ -109,10 +110,63 @@ app.get('/health', async (req, res) => {
   }
 })
 
+async function ensureAdminComponents() {
+  const fs = require('fs')
+  const path = require('path')
+  const bundlePath = path.join(__dirname, '.adminjs', 'bundle.js')
+  let needsBuild = true
+  try {
+    if (fs.existsSync(bundlePath)) {
+      const text = fs.readFileSync(bundlePath, 'utf8')
+      needsBuild = !text.includes('Welcome back') || !text.includes('Payments waiting')
+    }
+  } catch {
+    needsBuild = true
+  }
+  if (!needsBuild) return
+  console.log('Building AdminJS custom components…')
+  await new Promise((resolve, reject) => {
+    const { spawn } = require('child_process')
+    const child = spawn(process.execPath, [path.join(__dirname, 'scripts', 'bundle-admin.js')], {
+      cwd: __dirname,
+      stdio: 'inherit',
+      env: process.env,
+    })
+    child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`admin bundle exit ${code}`))))
+    child.on('error', reject)
+  })
+}
+
 async function startServer() {
   await syncDatabase()
+  await ensureAdminComponents()
 
+  const { rateLimit } = require('./middleware/rateLimit')
   const { adminRouter } = require('./admin')
+
+  // Components bundle must be public: it includes the Login override.
+  // AdminJS auth would otherwise return the login HTML for this URL (chicken-and-egg).
+  app.get('/admin/frontend/assets/components.bundle.js', (req, res) => {
+    const bundlePath = path.join(__dirname, '.adminjs', 'bundle.js')
+    res.type('application/javascript')
+    res.set('Cache-Control', 'no-cache')
+    return res.sendFile(bundlePath, (err) => {
+      if (err) {
+        console.error('Admin components bundle missing:', err.message)
+        res.status(500).type('text/plain').send('Admin components bundle missing')
+      }
+    })
+  })
+
+  // In-memory limit for AdminJS form POST (not shared across Railway replicas).
+  app.post(
+    '/admin/login',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 20,
+      message: 'Too many admin sign-in attempts. Try again in 15 minutes.',
+    })
+  )
   app.use('/admin', adminRouter)
 
   app.use(express.json({ limit: '1mb' }))
