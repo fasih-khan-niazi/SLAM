@@ -1,17 +1,15 @@
 const express = require('express')
 const multer = require('multer')
-const { protect, requireAdmin } = require('../middleware/auth')
+const { protect } = require('../middleware/auth')
 const { sendEmail } = require('../utils/email')
 const { isConfigured, uploadPaymentScreenshot } = require('../utils/cloudinary')
 const { getSystemConfig } = require('../utils/config')
 const { notifyAdmins, notifyUser } = require('../utils/notify')
 const { ok, fail } = require('../utils/http')
-const { cancelOtherActiveSubscriptions } = require('../utils/subscription')
 const {
   Payment,
   Subscription,
   SubscriptionPlan,
-  User,
 } = require('../models')
 
 const router = express.Router()
@@ -103,7 +101,7 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
     await subscription.update({ status: 'pending_approval' })
 
     const adminInbox = process.env.ADMIN_EMAIL
-    const publicApi = process.env.API_PUBLIC_URL || 'http://localhost:3000'
+    const portalBase = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
 
     await notifyAdmins(
       'New payment to review',
@@ -128,7 +126,7 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
         `Method: ${payment_method}\n` +
         `Transaction ID: ${transaction_id}\n` +
         `Screenshot: ${screenshotUrl}\n\n` +
-        `Admin panel: ${publicApi}/admin`
+        `Admin portal: ${portalBase}/admin/payments`
       )
     }
 
@@ -174,112 +172,6 @@ router.get('/payments/my', protect, async (req, res) => {
   } catch (err) {
     console.error('Get payments error:', err)
     return fail(res, 500, 'Unable to load payments')
-  }
-})
-
-router.patch('/admin/payments/:id/approve', protect, requireAdmin, async (req, res) => {
-  try {
-    const payment = await Payment.findByPk(req.params.id, {
-      include: [
-        { model: SubscriptionPlan, as: 'plan' },
-        { model: User },
-      ],
-    })
-
-    if (!payment) return fail(res, 404, 'Payment not found')
-
-    if (payment.status !== 'pending') {
-      return fail(res, 400, `Payment is already ${payment.status}`)
-    }
-
-    await payment.update({
-      status: 'approved',
-      approved_at: new Date(),
-    })
-
-    const today = new Date()
-    const endDate = new Date()
-    endDate.setDate(endDate.getDate() + 30)
-
-    await cancelOtherActiveSubscriptions(payment.user_id, payment.subscription_id)
-
-    await Subscription.update(
-      {
-        status: 'active',
-        start_date: today,
-        end_date: endDate,
-      },
-      { where: { id: payment.subscription_id } }
-    )
-
-    if (payment.User) {
-      await notifyUser(
-        payment.user_id,
-        'Payment approved',
-        `Your ${payment.plan.name} plan is now active.`,
-        'payment',
-      )
-      await sendEmail(
-        payment.User.email,
-        'Your SLAM subscription is active',
-        `Hi ${payment.User.name},\n\n` +
-        `Your payment was approved. The ${payment.plan.name} plan is now active.\n\n` +
-        `Plan: ${payment.plan.name}\n` +
-        `Amount: Rs. ${payment.amount_pkr}\n` +
-        `Valid until: ${endDate.toDateString()}\n\n` +
-        `Open the SLAM app to use your plan.\n`
-      )
-    }
-
-    return ok(res, 'Payment approved and subscription activated', {
-      payment_id: payment.id,
-      subscription_id: payment.subscription_id,
-      status: 'approved',
-    })
-  } catch (err) {
-    console.error('Approve payment error:', err)
-    return fail(res, 500, 'Unable to approve payment')
-  }
-})
-
-router.patch('/admin/payments/:id/reject', protect, requireAdmin, async (req, res) => {
-  try {
-    const payment = await Payment.findByPk(req.params.id, {
-      include: [{ model: User }],
-    })
-
-    if (!payment) return fail(res, 404, 'Payment not found')
-
-    await payment.update({ status: 'rejected' })
-
-    await Subscription.update(
-      { status: 'pending_payment' },
-      { where: { id: payment.subscription_id } }
-    )
-
-    if (payment.User) {
-      await notifyUser(
-        payment.user_id,
-        'Payment rejected',
-        `We could not verify transaction ${payment.transaction_id}.`,
-        'payment',
-      )
-      await sendEmail(
-        payment.User.email,
-        'SLAM payment could not be verified',
-        `Hi ${payment.User.name},\n\n` +
-        `We could not verify the payment with transaction ID ${payment.transaction_id}.\n\n` +
-        `Check the ID and submit again, or contact support if this looks wrong.\n`
-      )
-    }
-
-    return ok(res, 'Payment rejected', {
-      payment_id: payment.id,
-      status: 'rejected',
-    })
-  } catch (err) {
-    console.error('Reject payment error:', err)
-    return fail(res, 500, 'Unable to reject payment')
   }
 })
 
