@@ -14,15 +14,18 @@ import java.util.concurrent.TimeUnit
 
 object EmergencyScheduler {
     private const val UNIQUE = "slam-emergency"
+    /** WorkManager periodic minimum is 15 minutes. */
+    private const val MIN_MINUTES = 15L
+    private const val MAX_MINUTES = 24L * 60L
 
-    fun start(context: Context, hours: Int) {
+    fun start(context: Context, minutes: Int) {
         val accountId = AccountIdentity.current(context)
-        val interval = hours.coerceIn(1, 24).toLong()
+        val interval = minutes.toLong().coerceIn(MIN_MINUTES, MAX_MINUTES)
         EmergencyPrefs(context).setNextRun(
-            System.currentTimeMillis() + TimeUnit.HOURS.toMillis(interval),
+            System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(interval),
         )
-        val periodic = PeriodicWorkRequestBuilder<EmergencyWorker>(interval, TimeUnit.HOURS)
-            .setInitialDelay(interval, TimeUnit.HOURS)
+        val periodic = PeriodicWorkRequestBuilder<EmergencyWorker>(interval, TimeUnit.MINUTES)
+            .setInitialDelay(interval, TimeUnit.MINUTES)
             .setInputData(Data.Builder().putString(EmergencyWorker.KEY_ACCOUNT_ID, accountId).build())
             .build()
         WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
