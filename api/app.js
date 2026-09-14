@@ -111,6 +111,7 @@ async function startServer() {
   app.use('/api', require('./routes/location'))
   app.use('/api', require('./routes/config'))
   app.use('/api', require('./routes/notifications'))
+  app.use('/api', require('./routes/trustedNumbers'))
 
   app.use((err, req, res, next) => {
     if (err && err.message === 'Not allowed by CORS') {
