@@ -38,6 +38,11 @@ const Subscription = sequelize.define('Subscription', {
     type: DataTypes.INTEGER,
     defaultValue: 0,
   },
+  cancel_at_period_end: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  },
 }, {
   tableName: 'subscriptions',
   timestamps: true,
