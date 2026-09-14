@@ -67,11 +67,11 @@ function publicFields(row) {
 
 function resolveEmergencyMinutes(row) {
   if (row.emergency_interval_minutes != null && row.emergency_interval_minutes !== '') {
-    return clampInt(row.emergency_interval_minutes, 60, 15, 1440)
+    return clampInt(row.emergency_interval_minutes, 60, 5, 1440)
   }
   // Legacy hours column → minutes
   if (row.emergency_interval_hours != null && row.emergency_interval_hours !== '') {
-    return clampInt(Number(row.emergency_interval_hours) * 60, 60, 15, 1440)
+    return clampInt(Number(row.emergency_interval_hours) * 60, 60, 5, 1440)
   }
   return 60
 }

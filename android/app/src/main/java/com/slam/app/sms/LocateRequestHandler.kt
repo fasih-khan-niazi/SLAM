@@ -69,17 +69,39 @@ class LocateRequestHandler(private val context: Context) {
 
         val preferBattery = session.preferBattery.first()
         val sender = SmsReplySender(context)
+        val servicesOn = CorePrerequisites.status(context).locationServicesEnabled
         val fix = LocationClient(context).acquire(preferBattery)
         if (fix == null) {
             sender.send(from, "SLAM location unavailable: no live or saved location was found.")
+            if (!servicesOn) {
+                com.slam.app.notify.SlamNotify.turnLocationOn(context)
+            }
             events.refund(reservation)
             return@withContext
+        }
+
+        if (!servicesOn || fix.isLastKnownFallback) {
+            com.slam.app.notify.SlamNotify.turnLocationOn(context)
         }
 
         if (!sender.send(from, fix.smsBody())) {
             events.refund(reservation)
             return@withContext
         }
-        if (events.finalize(reservation, fix, from)) OutboxDispatcher(context).flush()
+        if (events.finalize(reservation, fix, from)) {
+            OutboxDispatcher(context).flush()
+            com.slam.app.notify.SlamNotify.locationSent(context)
+            maybeStopOnQuota(context, session)
+        }
+    }
+
+    private suspend fun maybeStopOnQuota(context: Context, session: SessionStore) {
+        if (session.cachedUnlimited.first()) return
+        if (session.canLocate()) return
+        com.slam.app.data.ListenerPrefs(context).setListening(false)
+        com.slam.app.service.SlamListenerService.stop(context)
+        com.slam.app.location.QuietLocationWorker.cancel(context)
+        val end = session.cachedPeriodEndLabel()
+        com.slam.app.notify.SlamNotify.quotaExhausted(context, end)
     }
 }

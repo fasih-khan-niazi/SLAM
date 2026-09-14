@@ -306,10 +306,15 @@ router.patch('/config', async (req, res) => {
     if (body.login_attempt_cap != null) fields.login_attempt_cap = Number(body.login_attempt_cap)
     if (body.login_window_minutes != null) fields.login_window_minutes = Number(body.login_window_minutes)
     if (body.emergency_interval_minutes != null) {
-      fields.emergency_interval_minutes = Number(body.emergency_interval_minutes)
+      const n = Number(body.emergency_interval_minutes)
+      fields.emergency_interval_minutes = Number.isFinite(n)
+        ? Math.min(1440, Math.max(5, Math.round(n)))
+        : 60
     } else if (body.emergency_interval_hours != null) {
       // Back-compat for older admin clients
-      fields.emergency_interval_minutes = Number(body.emergency_interval_hours) * 60
+      const hours = Number(body.emergency_interval_hours)
+      const minutes = Number.isFinite(hours) ? hours * 60 : 60
+      fields.emergency_interval_minutes = Math.min(1440, Math.max(5, Math.round(minutes)))
     }
     for (const key of [
       'maintenance',

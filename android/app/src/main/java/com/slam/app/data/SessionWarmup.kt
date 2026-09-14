@@ -45,6 +45,7 @@ object SessionWarmup {
                     } else {
                         PinCloudSync.pullIfNeeded(context)
                     }
+                    TrustedContactsSync.pull(context)
                 }
             }
         }

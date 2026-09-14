@@ -12,6 +12,7 @@ import { Modal } from '../../components/Modal'
 import { Skeleton } from '../../components/Skeleton'
 import { StatusChip } from '../../components/StatusChip'
 import { EmptyState } from '../../components/EmptyState'
+import { useIntervalRefresh } from '../../hooks/useIntervalRefresh'
 
 function tone(status) {
   if (status === 'approved') return 'success'
@@ -39,6 +40,8 @@ export function AdminPaymentsPage() {
     setPayments(null)
     load()
   }, [load])
+
+  useIntervalRefresh(() => { load() }, 20000)
 
   async function runAction() {
     if (!confirm) return

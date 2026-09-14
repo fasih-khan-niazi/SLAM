@@ -29,6 +29,7 @@ function formatSubscription(subscription, plan, requestsUsed) {
     has_history: plan ? Boolean(plan.has_history) : false,
     start_date: subscription ? subscription.start_date : null,
     end_date: subscription ? subscription.end_date : null,
+    cancel_at_period_end: subscription ? Boolean(subscription.cancel_at_period_end) : false,
   }
 }
 
@@ -75,16 +76,37 @@ async function activateFreePlan(userId, transaction) {
 }
 
 async function rollUsagePeriodIfExpired(subscription, transaction) {
-  if (!subscription || subscription.status !== 'active' || !subscription.plan) {
+  if (!subscription || subscription.status !== 'active') {
     return subscription
   }
-  if (subscription.plan.monthly_limit == null) return subscription
+  if (!subscription.plan) {
+    const withPlan = await Subscription.findByPk(subscription.id, {
+      include: [{ model: SubscriptionPlan, as: 'plan' }],
+      ...(transaction ? { transaction } : {}),
+    })
+    if (!withPlan) return subscription
+    subscription = withPlan
+  }
   if (!subscription.end_date) return subscription
 
   const end = new Date(subscription.end_date)
   if (Number.isNaN(end.getTime()) || Date.now() <= end.getTime()) {
     return subscription
   }
+
+  if (subscription.cancel_at_period_end) {
+    await subscription.update(
+      { status: 'cancelled', cancel_at_period_end: false },
+      transaction ? { transaction } : undefined
+    )
+    const free = await activateFreePlan(subscription.user_id, transaction)
+    return Subscription.findByPk(free.id, {
+      include: [{ model: SubscriptionPlan, as: 'plan' }],
+      ...(transaction ? { transaction } : {}),
+    })
+  }
+
+  if (subscription.plan.monthly_limit == null) return subscription
 
   const today = new Date()
   await subscription.update({
