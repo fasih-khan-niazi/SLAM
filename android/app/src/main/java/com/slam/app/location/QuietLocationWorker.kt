@@ -23,8 +23,9 @@ class QuietLocationWorker(
         if (AccountIdentity.current(applicationContext) != owner) return Result.success()
         if (!ListenerPrefs(applicationContext).isListening()) return Result.success()
         val status = CorePrerequisites.status(applicationContext)
-        if (!status.locationGranted || !status.locationServicesEnabled) return Result.success()
+        if (!status.locationGranted) return Result.success()
         if (!UiPreferences(applicationContext).lastKnownFallbackEnabled.first()) return Result.success()
+        // Always attempt acquire (even if services appear off); LocationClient falls back.
         val preferBattery = SessionStore(applicationContext).preferBattery.first()
         LocationClient(applicationContext).acquire(preferBattery)
         return Result.success()
@@ -35,8 +36,8 @@ class QuietLocationWorker(
         private const val UNIQUE = "slam-quiet-location"
 
         fun schedule(context: Context, accountId: String = AccountIdentity.current(context)) {
-            val request = PeriodicWorkRequestBuilder<QuietLocationWorker>(20, TimeUnit.MINUTES)
-                .setInitialDelay(20, TimeUnit.MINUTES)
+            val request = PeriodicWorkRequestBuilder<QuietLocationWorker>(15, TimeUnit.MINUTES)
+                .setInitialDelay(15, TimeUnit.MINUTES)
                 .setInputData(
                     androidx.work.Data.Builder().putString(KEY_ACCOUNT_ID, accountId).build(),
                 )

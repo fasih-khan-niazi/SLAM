@@ -88,7 +88,7 @@ class SessionStore(private val context: Context) {
     ) {
         val cap = pinCap?.takeIf { it in 1..30 } ?: 3
         val window = windowMinutes?.takeIf { it in 1..1440 } ?: 15
-        val minutes = emergencyMinutes?.takeIf { it in 15..1440 } ?: 60
+        val minutes = emergencyMinutes?.takeIf { it in 5..1440 } ?: 60
         val minPin = pinMinLength?.coerceIn(4, 8) ?: 4
         val maxPin = pinMaxLength?.coerceIn(minPin, 8) ?: 6
         context.dataStore.edit {
@@ -128,6 +128,14 @@ class SessionStore(private val context: Context) {
     suspend fun cachedPlanName(): String {
         val accountId = accountId()
         return context.dataStore.data.first()[stringPreferencesKey(scoped("plan_name", accountId))] ?: "Free"
+    }
+
+    suspend fun cachedPeriodEndLabel(): String? {
+        val accountId = accountId()
+        val raw = context.dataStore.data.first()[stringPreferencesKey(scoped("period_end", accountId))]
+            ?.trim().orEmpty()
+        if (raw.isBlank()) return null
+        return raw.take(10)
     }
 
     /**

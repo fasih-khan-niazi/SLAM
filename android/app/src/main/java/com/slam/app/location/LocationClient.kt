@@ -22,7 +22,8 @@ class LocationClient(private val context: Context) {
 
     suspend fun acquire(preferBattery: Boolean = false): SlamFix? {
         val status = CorePrerequisites.status(context)
-        if (status.locationGranted && status.locationServicesEnabled) {
+        // Best-effort live fix even when services appear off (some OEMs still return a fix).
+        if (status.locationGranted) {
             val batterySaver = preferBattery || batteryPercent() in 0..14
             if (!batterySaver) {
                 requestFix(Priority.PRIORITY_HIGH_ACCURACY, 12_000L, "HIGH")?.let {
@@ -34,11 +35,45 @@ class LocationClient(private val context: Context) {
                 persist(it)
                 return it
             }
+            // Last fused fix without forcing a new update.
+            fusedLastLocation()?.let {
+                persist(it)
+                return it
+            }
         }
         return if (UiPreferences(context).lastKnownFallbackEnabled.first()) {
             persistedLastKnown()
         } else {
             null
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private suspend fun fusedLastLocation(): SlamFix? {
+        return withTimeoutOrNull(3_000L) {
+            suspendCancellableCoroutine { cont ->
+                fused.lastLocation
+                    .addOnSuccessListener { loc ->
+                        if (loc != null && cont.isActive) {
+                            cont.resume(
+                                SlamFix(
+                                    latitude = loc.latitude,
+                                    longitude = loc.longitude,
+                                    accuracy = "LOW",
+                                    accuracyMeters = if (loc.hasAccuracy()) loc.accuracy else null,
+                                    provider = loc.provider ?: "fused",
+                                    timestamp = loc.time,
+                                    isLastKnownFallback = true,
+                                ),
+                            )
+                        } else if (cont.isActive) {
+                            cont.resume(null)
+                        }
+                    }
+                    .addOnFailureListener {
+                        if (cont.isActive) cont.resume(null)
+                    }
+            }
         }
     }
 
