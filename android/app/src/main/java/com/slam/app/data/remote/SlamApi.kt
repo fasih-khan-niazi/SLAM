@@ -56,6 +56,17 @@ interface SlamApi {
         @Header("Authorization") bearer: String,
     ): Response<ApiEnvelope<NotificationList>>
 
+    @GET("api/trusted-numbers")
+    suspend fun getTrustedNumbers(
+        @Header("Authorization") bearer: String,
+    ): Response<ApiEnvelope<TrustedNumbersList>>
+
+    @PUT("api/trusted-numbers")
+    suspend fun putTrustedNumbers(
+        @Header("Authorization") bearer: String,
+        @Body body: TrustedNumbersBody,
+    ): Response<ApiEnvelope<TrustedNumbersList>>
+
     @PATCH("api/notifications/{id}/read")
     suspend fun markNotificationRead(
         @Header("Authorization") bearer: String,

@@ -131,10 +131,11 @@ export function PlansPage() {
                     </div>
                   </div>
                 ) : null}
-                {user && plan.price_pkr > 0 && !current && !isPendingPlan && !pending && paymentsEnabled && !maintenance ? (
+                {user && plan.price_pkr > 0 && !current && !isPendingPlan && !pending && paymentsEnabled && !maintenance
+                  && (!(active?.price_pkr > 0) || plan.price_pkr > (active?.price_pkr || 0)) ? (
                   <div style={{ marginTop: 16 }}>
                     <Button onClick={() => choose(plan)} loading={busyId === plan.id} block>
-                      Choose {plan.name}
+                      {active?.price_pkr > 0 ? `Upgrade to ${plan.name}` : `Choose ${plan.name}`}
                     </Button>
                   </div>
                 ) : null}

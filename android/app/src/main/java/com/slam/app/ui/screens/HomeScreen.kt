@@ -56,6 +56,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.slam.app.R
 import com.slam.app.data.EmergencyPrefs
 import com.slam.app.data.SessionStore
+import com.slam.app.data.TrustedContactsSync
 import com.slam.app.data.local.SlamDatabase
 import com.slam.app.data.local.TrustedNumberEntity
 import com.slam.app.permissions.CorePrerequisites
@@ -106,6 +107,7 @@ fun HomeScreen(
     var currentPin by remember { mutableStateOf("") }
     var newPin by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
+    var pinSaving by remember { mutableStateOf(false) }
     var emergencyNote by remember { mutableStateOf<String?>(null) }
     var newLabel by remember { mutableStateOf("") }
     var newNumber by remember { mutableStateOf("") }
@@ -190,6 +192,7 @@ fun HomeScreen(
                 normalized = normalized,
             ),
         )
+        TrustedContactsSync.push(context)
         viewModel.reloadLocal()
         toast.show("Trusted number added", SlamToastTone.SUCCESS)
         return true
@@ -316,10 +319,23 @@ fun HomeScreen(
         Spacer(Modifier.height(24.dp))
 
         if (!state.bootstrapped) {
-                SlamSkeleton(height = 96)
-                Spacer(Modifier.height(12.dp))
-                SlamSkeleton(height = 140)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    SlamLottie(resId = R.raw.lottie_loading, size = 96.dp)
+                    Spacer(Modifier.height(12.dp))
+                    Text("Loading your setup…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             } else {
+                if (!state.unlimited && (state.remaining ?: 1) <= 0) {
+                    SlamBanner(
+                        title = "Locate limit reached",
+                        message = "Listening has stopped. Upgrade on the SLAM web portal or wait for your plan to renew.",
+                        tone = SlamStatusTone.WARNING,
+                    )
+                    Spacer(modifier.height(12.dp))
+                }
                 if (state.pendingOutbox > 0) {
                     SlamBanner(
                         title = "Waiting to sync",
@@ -441,18 +457,33 @@ fun HomeScreen(
                             )
                             Spacer(Modifier.height(16.dp))
                             SlamPrimaryButton(
-                                text = "Save PIN",
+                                text = if (pinSaving) "Saving…" else "Save PIN",
+                                enabled = !pinSaving,
                                 onClick = {
-                                    if (pinStore.setPin(pinInput, state.pinMinLength, state.pinMaxLength)) {
-                                        pinInput = ""
-                                        viewModel.reloadLocal()
-                                        scope.launch {
-                                            PinCloudSync.pushCurrent(context)
-                                            toast.show("PIN saved", SlamToastTone.SUCCESS)
-                                        }
-                                    } else {
+                                    if (pinSaving) return@SlamPrimaryButton
+                                    val candidate = pinInput
+                                    if (!pinStore.setPin(candidate, state.pinMinLength, state.pinMaxLength)) {
                                         pinError =
                                             "PIN must be ${state.pinMinLength} to ${state.pinMaxLength} digits"
+                                        return@SlamPrimaryButton
+                                    }
+                                    pinSaving = true
+                                    scope.launch {
+                                        try {
+                                            val pushed = PinCloudSync.pushCurrent(context)
+                                            viewModel.reloadLocal()
+                                            pinInput = ""
+                                            if (pushed) {
+                                                toast.show("PIN saved", SlamToastTone.SUCCESS)
+                                            } else {
+                                                toast.show(
+                                                    "PIN saved on this phone. Cloud sync will retry next time you open the app.",
+                                                    SlamToastTone.WARNING,
+                                                )
+                                            }
+                                        } finally {
+                                            pinSaving = false
+                                        }
                                     }
                                 },
                             )
@@ -841,6 +872,7 @@ fun HomeScreen(
             onConfirm = {
                 scope.launch {
                     db.trustedNumbers().delete(contact)
+                    TrustedContactsSync.push(context)
                     val empty = db.trustedNumbers().count() == 0
                     if (empty) SlamListenerService.stop(context)
                     pendingDelete = null

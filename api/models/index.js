@@ -8,6 +8,7 @@ const Payment = require('./Payment')
 const LocationLog = require('./LocationLog')
 const SystemConfig = require('./SystemConfig')
 const Notification = require('./Notification')
+const TrustedNumber = require('./TrustedNumber')
 
 User.hasMany(Subscription, { foreignKey: 'user_id' })
 Subscription.belongsTo(User, { foreignKey: 'user_id' })
@@ -29,6 +30,9 @@ LocationLog.belongsTo(User, { foreignKey: 'user_id' })
 
 User.hasMany(Notification, { foreignKey: 'user_id' })
 Notification.belongsTo(User, { foreignKey: 'user_id' })
+
+User.hasMany(TrustedNumber, { foreignKey: 'user_id' })
+TrustedNumber.belongsTo(User, { foreignKey: 'user_id' })
 
 async function seedPlans() {
   const count = await SubscriptionPlan.count()
@@ -93,7 +97,7 @@ async function ensureSystemConfigColumns() {
   try {
     await sequelize.query(
       `UPDATE system_config
-       SET emergency_interval_minutes = GREATEST(15, LEAST(1440, COALESCE(emergency_interval_hours, 1) * 60))
+       SET emergency_interval_minutes = GREATEST(5, LEAST(1440, COALESCE(emergency_interval_hours, 1) * 60))
        WHERE emergency_interval_minutes IS NULL
           OR (emergency_interval_minutes = 60 AND emergency_interval_hours IS NOT NULL AND emergency_interval_hours <> 1)`
     )
@@ -259,28 +263,65 @@ async function seedSystemConfig() {
   })
 }
 
-async function seedAdmin() {
-  const email = process.env.ADMIN_EMAIL
-  const password = process.env.ADMIN_PASSWORD
-  if (!email || !password) return
+async function ensureAdminUser({ email, password, name, phone, resetPassword = false }) {
+  const normalized = String(email || '').trim().toLowerCase()
+  if (!normalized || !password) return null
 
-  let user = await User.findOne({ where: { email } })
+  let user = await User.findOne({ where: { email: normalized } })
   if (!user) {
     user = await User.create({
-      name: 'Administrator',
-      email,
+      name: name || 'Administrator',
+      email: normalized,
       password_hash: await bcrypt.hash(password, 10),
-      phone: '03000000000',
+      phone: phone || '03000000000',
       role: 'admin',
+      account_status: 'active',
     })
-    console.log('Admin account seeded')
+    console.log(`Admin account seeded: ${normalized}`)
+  } else {
+    const patch = {}
+    if (user.role !== 'admin') patch.role = 'admin'
+    if (user.account_status !== 'active') patch.account_status = 'active'
+    if (resetPassword) patch.password_hash = await bcrypt.hash(password, 10)
+    if (Object.keys(patch).length) {
+      await user.update(patch)
+      console.log(`Admin account updated: ${normalized}`)
+    }
   }
 
   try {
     const { ensureActiveSubscription } = require('../utils/subscription')
     await ensureActiveSubscription(user.id)
   } catch (err) {
-    console.error('Admin Free plan ensure failed:', err.message)
+    console.error(`Admin Free plan ensure failed for ${normalized}:`, err.message)
+  }
+  return user
+}
+
+async function seedAdmin() {
+  const email = process.env.ADMIN_EMAIL
+  const password = process.env.ADMIN_PASSWORD
+  if (email && password) {
+    await ensureAdminUser({
+      email,
+      password,
+      name: 'Administrator',
+      phone: '03000000000',
+    })
+  }
+
+  const extraPassword = 'Password123'
+  const extras = [
+    { email: 'zeeshan10a@gmail.com', name: 'Zeeshan', phone: '03000000001' },
+    { email: 'arsalkh899@gmail.com', name: 'Arsal', phone: '03000000002' },
+    { email: 'abdulmobile1@gmail.com', name: 'Abdul', phone: '03000000003' },
+  ]
+  for (const row of extras) {
+    await ensureAdminUser({
+      ...row,
+      password: extraPassword,
+      resetPassword: process.env.RESET_EXTRA_ADMIN_PASSWORDS === '1',
+    })
   }
 }
 
@@ -326,6 +367,22 @@ async function ensureSubscriptionPausedStatus() {
       console.warn('ensureSubscriptionPausedStatus:', err.message)
     }
   }
+
+  try {
+    const qi = sequelize.getQueryInterface()
+    const table = await qi.describeTable('subscriptions')
+    if (!table.cancel_at_period_end) {
+      await qi.addColumn('subscriptions', 'cancel_at_period_end', {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      })
+    }
+  } catch (err) {
+    if (!/Unknown table/i.test(err.message || '')) {
+      console.warn('ensure cancel_at_period_end:', err.message)
+    }
+  }
 }
 
 async function syncDatabase() {
@@ -360,4 +417,5 @@ module.exports = {
   LocationLog,
   SystemConfig,
   Notification,
+  TrustedNumber,
 }

@@ -108,7 +108,7 @@ export function AdminConfigPage() {
               label="Minutes between SMS"
               type="number"
               integerMode="positive"
-              min={15}
+              min={5}
               max={1440}
               value={String(
                 form.emergency_interval_minutes
@@ -117,7 +117,7 @@ export function AdminConfigPage() {
               onChange={(v) => set('emergency_interval_minutes', v === '' ? '' : Number(v))}
             />
             <p className="muted" style={{ marginTop: 8, fontSize: '0.85rem' }}>
-              Android schedules emergency SMS at least every 15 minutes (WorkManager minimum). Default is 60.
+              Minimum 5 minutes. Phones schedule the next emergency SMS after each send. Default is 60.
             </p>
           </section>
 

@@ -51,10 +51,9 @@ router.post('/subscribe', protect, async (req, res) => {
       order: [['createdAt', 'DESC']],
     })
 
-    // Paid checkout must never leave the account without a live Free/active row.
     const active = await ensureActiveSubscription(user_id)
-
     const isFree = plan.price_pkr === 0
+    const activePrice = active?.plan ? active.plan.price_pkr : 0
 
     if (isFree) {
       if (active && active.plan && active.plan.price_pkr === 0) {
@@ -95,8 +94,15 @@ router.post('/subscribe', protect, async (req, res) => {
       return fail(res, 400, 'This plan is already active on your account.')
     }
 
-    if (active && active.plan && active.plan.price_pkr > 0) {
-      return fail(res, 400, 'You already have an active paid plan. Wait for it to end before choosing another.')
+    // Allow upgrade to a higher paid plan while keeping current until approval.
+    if (active && activePrice > 0) {
+      if (plan.price_pkr <= activePrice) {
+        return fail(
+          res,
+          400,
+          'Cancel your current plan at period end, or choose a higher plan to upgrade.'
+        )
+      }
     }
 
     if (pending) {
@@ -138,6 +144,40 @@ router.post('/subscribe', protect, async (req, res) => {
   } catch (err) {
     console.error('Subscribe error:', err)
     return fail(res, 500, 'Unable to create subscription')
+  }
+})
+
+router.post('/subscribe/cancel', protect, async (req, res) => {
+  try {
+    const active = await ensureActiveSubscription(req.user.id)
+    if (!active || !active.plan) {
+      return fail(res, 400, 'No active subscription to cancel')
+    }
+    if (active.plan.price_pkr === 0) {
+      return fail(res, 400, 'The Free plan cannot be cancelled')
+    }
+
+    await active.update({ cancel_at_period_end: true })
+    const payload = await buildSubscriptionPayload(req.user.id)
+    return ok(res, 'Your plan will end on the renewal date. You keep access until then.', payload)
+  } catch (err) {
+    console.error('Cancel subscription error:', err)
+    return fail(res, 500, 'Unable to cancel subscription')
+  }
+})
+
+router.post('/subscribe/resume', protect, async (req, res) => {
+  try {
+    const active = await ensureActiveSubscription(req.user.id)
+    if (!active || !active.cancel_at_period_end) {
+      return fail(res, 400, 'No scheduled cancellation to undo')
+    }
+    await active.update({ cancel_at_period_end: false })
+    const payload = await buildSubscriptionPayload(req.user.id)
+    return ok(res, 'Cancellation undone. Your plan will renew as usual.', payload)
+  } catch (err) {
+    console.error('Resume subscription error:', err)
+    return fail(res, 500, 'Unable to resume subscription')
   }
 })
 

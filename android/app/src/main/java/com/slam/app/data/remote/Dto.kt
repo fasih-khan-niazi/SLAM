@@ -113,8 +113,8 @@ data class PublicConfig(
     @SerializedName("emergency_interval_hours") val emergencyIntervalHours: Int? = null,
 ) {
     fun resolvedEmergencyMinutes(): Int {
-        emergencyIntervalMinutes?.takeIf { it in 15..1440 }?.let { return it }
-        emergencyIntervalHours?.takeIf { it in 1..24 }?.let { return (it * 60).coerceIn(15, 1440) }
+        emergencyIntervalMinutes?.takeIf { it in 5..1440 }?.let { return it }
+        emergencyIntervalHours?.takeIf { it in 1..24 }?.let { return (it * 60).coerceIn(5, 1440) }
         return 60
     }
 }
@@ -161,4 +161,17 @@ data class NotificationItem(
 data class NotificationReadResult(
     val id: Int,
     val read: Boolean,
+)
+
+data class TrustedNumberItem(
+    val label: String = "",
+    val phone: String,
+)
+
+data class TrustedNumbersList(
+    val numbers: List<TrustedNumberItem> = emptyList(),
+)
+
+data class TrustedNumbersBody(
+    val numbers: List<TrustedNumberItem>,
 )

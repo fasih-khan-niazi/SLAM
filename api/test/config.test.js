@@ -47,13 +47,11 @@ describe('publicFields', () => {
     assert.equal(out.jazzcash_account, process.env.JAZZCASH_ACCOUNT || process.env.PAYMENT_ACCOUNT || DEFAULT_MERCHANT)
   })
 
-  it('ensures pin max is at least pin min', () => {
+  it('clamps emergency minutes to at least 5', () => {
     const out = publicFields({
-      pin_min_length: 6,
-      pin_max_length: 4,
+      emergency_interval_minutes: 3,
     })
-    assert.equal(out.pin_min_length, 6)
-    assert.equal(out.pin_max_length, 6)
+    assert.equal(out.emergency_interval_minutes, 5)
   })
 })
 

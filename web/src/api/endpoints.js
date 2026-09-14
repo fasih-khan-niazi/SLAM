@@ -44,6 +44,14 @@ export function subscribeToPlan(token, planId) {
   return api('/api/subscribe', { method: 'POST', body: { plan_id: planId }, token })
 }
 
+export function cancelSubscription(token) {
+  return api('/api/subscribe/cancel', { method: 'POST', token })
+}
+
+export function resumeSubscription(token) {
+  return api('/api/subscribe/resume', { method: 'POST', token })
+}
+
 export function listPayments(token) {
   return api('/api/payments/my', { token })
 }

@@ -14,6 +14,7 @@ import { Modal } from '../components/Modal'
 import { Skeleton } from '../components/Skeleton'
 import { StatusChip } from '../components/StatusChip'
 import { ProtectedRoute } from '../components/ProtectedRoute'
+import { useIntervalRefresh } from '../hooks/useIntervalRefresh'
 
 function formatDate(value) {
   if (!value) return '—'
@@ -69,6 +70,13 @@ function PaymentsContent() {
       .then((res) => setPayments(res.data.payments || []))
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Unable to load payments'))
   }, [token])
+
+  useIntervalRefresh(() => {
+    listPayments(token)
+      .then((res) => setPayments(res.data.payments || []))
+      .catch(() => {})
+    refresh().catch(() => {})
+  }, 20000)
 
   async function copyAccount() {
     try {

@@ -64,6 +64,8 @@ data class DashboardUiState(
     val lastLocationSummary: String? = null,
     val maintenance: Boolean = false,
     val pendingOutbox: Int = 0,
+    val quotaExhausted: Boolean = false,
+    val periodEndLabel: String? = null,
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
@@ -74,13 +76,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         viewModelScope.launch {
-            session.cachedRemaining.collectLatest { remaining ->
-                _state.value = _state.value.copy(
-                    remaining = remaining.takeUnless { it == Int.MAX_VALUE },
-                )
-            }
-        }
-        viewModelScope.launch {
             ListenerPrefs(getApplication()).listeningActiveFlow().collectLatest { listening ->
                 _state.value = _state.value.copy(listening = listening)
             }
@@ -88,6 +83,36 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             EmergencyPrefs(getApplication()).isOnFlow().collectLatest { emergency ->
                 _state.value = _state.value.copy(emergency = emergency)
+            }
+        }
+        viewModelScope.launch {
+            val accountId = AccountIdentity.current(getApplication())
+            SlamDatabase.get(getApplication()).lastLocations().observe(accountId).collectLatest { lastLocation ->
+                _state.value = _state.value.copy(
+                    lastLocationSummary = lastLocation?.let {
+                        val ageMinutes = ((System.currentTimeMillis() - it.locationTimestamp)
+                            .coerceAtLeast(0) / 60_000)
+                        "Captured ${ageMinutes}m ago" +
+                            it.accuracyMeters?.let { meters -> " · +/-${meters.toInt()}m" }.orEmpty()
+                    },
+                )
+            }
+        }
+        viewModelScope.launch {
+            session.cachedRemaining.collectLatest { remaining ->
+                val unlimited = remaining == Int.MAX_VALUE
+                val exhausted = !unlimited && remaining <= 0
+                _state.value = _state.value.copy(
+                    remaining = remaining.takeUnless { it == Int.MAX_VALUE },
+                    quotaExhausted = exhausted,
+                    periodEndLabel = session.cachedPeriodEndLabel(),
+                )
+            }
+        }
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(30_000)
+                refresh()
             }
         }
         refresh()
@@ -182,6 +207,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                         .forEach { contactDao.delete(it) }
                 }
                 val remainingAfter = session.cachedRemaining.first()
+                val unlimited = remainingAfter == Int.MAX_VALUE
                 _state.value = _state.value.copy(
                     loading = false,
                     name = profile?.user?.name ?: cachedName,
@@ -192,6 +218,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     maintenance = config?.maintenance == true ||
                         (config == null && session.cachedMaintenance()),
                     pendingOutbox = pendingAfterFlush,
+                    quotaExhausted = !unlimited && remainingAfter <= 0,
+                    periodEndLabel = session.cachedPeriodEndLabel(),
                 )
             } catch (_: Exception) {
                 _state.value = _state.value.copy(loading = false, offline = true)
@@ -247,6 +275,21 @@ fun DashboardScreen(
                 "Protection status at a glance.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        if (state.quotaExhausted) {
+            item {
+                SlamBanner(
+                    title = "Locate limit reached",
+                    message = buildString {
+                        append("Listening has stopped. ")
+                        if (!state.periodEndLabel.isNullOrBlank()) {
+                            append("Your plan renews on ${state.periodEndLabel}. ")
+                        }
+                        append("Upgrade on the SLAM web portal for more locates.")
+                    },
+                    tone = SlamStatusTone.WARNING,
+                )
+            }
         }
         if (state.pendingOutbox > 0) {
             item {
