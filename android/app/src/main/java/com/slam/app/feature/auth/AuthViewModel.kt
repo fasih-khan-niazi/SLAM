@@ -67,6 +67,7 @@ class AuthRepository(
         } else {
             PinCloudSync.pullIfNeeded(context)
         }
+        com.slam.app.data.TrustedContactsSync.pull(context)
     }
 
     suspend fun register(
