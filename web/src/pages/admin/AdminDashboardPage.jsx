@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { adminStats } from '../../api/endpoints'
@@ -6,6 +6,7 @@ import { ApiError } from '../../api/client'
 import { Banner } from '../../components/Banner'
 import { Skeleton } from '../../components/Skeleton'
 import { StatusChip } from '../../components/StatusChip'
+import { useIntervalRefresh } from '../../hooks/useIntervalRefresh'
 
 export function AdminDashboardPage() {
   const { token } = useAuth()
@@ -13,21 +14,19 @@ export function AdminDashboardPage() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
+  const load = useCallback(() => {
     adminStats(token)
-      .then((res) => {
-        if (!cancelled) setStats(res.data || {})
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof ApiError ? err.message : 'Unable to load stats')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => { cancelled = true }
+      .then((res) => setStats(res.data || {}))
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Unable to load stats'))
+      .finally(() => setLoading(false))
   }, [token])
+
+  useEffect(() => {
+    setLoading(true)
+    load()
+  }, [load])
+
+  useIntervalRefresh(load, 20000)
 
   return (
     <div className="admin-page">

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { listNotifications, markNotificationRead } from '../api/endpoints'
+import { cancelSubscription, listNotifications, markNotificationRead, resumeSubscription } from '../api/endpoints'
 import { ApiError } from '../api/client'
 import { Banner } from '../components/Banner'
 import { Button } from '../components/Button'
@@ -12,6 +12,7 @@ import { Modal } from '../components/Modal'
 import { PasswordStrength, scorePassword } from '../components/PasswordStrength'
 import { Skeleton } from '../components/Skeleton'
 import { StatusChip } from '../components/StatusChip'
+import { useIntervalRefresh } from '../hooks/useIntervalRefresh'
 
 function remainingCopy(subscription) {
   if (!subscription) return 'Loading your usage…'
@@ -53,9 +54,12 @@ export function HomePage() {
   const [passwordError, setPasswordError] = useState(null)
   const [passwordOk, setPasswordOk] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelBusy, setCancelBusy] = useState(false)
+  const [cancelError, setCancelError] = useState(null)
   const strength = useMemo(() => scorePassword(newPassword), [newPassword])
 
-  useEffect(() => {
+  const loadNotes = useCallback(() => {
     if (!token && !user) return
     listNotifications(token)
       .then((res) => setNotes(res.data.notifications || []))
@@ -64,6 +68,15 @@ export function HomePage() {
         setSyncError('Could not refresh notifications. Showing what we have.')
       })
   }, [token, user])
+
+  useEffect(() => {
+    loadNotes()
+  }, [loadNotes])
+
+  useIntervalRefresh(() => {
+    refresh().catch(() => {})
+    loadNotes()
+  }, 20000)
 
   async function onRead(id) {
     try {
@@ -84,6 +97,35 @@ export function HomePage() {
     ? subscription
     : (subscription?.active_plan || subscription)
   const chip = statusChip(active?.status || 'active')
+  const paidActive = active && Number(active.price_pkr || 0) > 0
+  const cancelling = Boolean(active?.cancel_at_period_end)
+  const endLabel = formatDate(active?.end_date)
+
+  async function onConfirmCancel() {
+    setCancelBusy(true)
+    setCancelError(null)
+    try {
+      await cancelSubscription(token)
+      await refresh()
+      setCancelOpen(false)
+    } catch (err) {
+      setCancelError(err instanceof ApiError ? err.message : 'Could not schedule cancellation')
+    } finally {
+      setCancelBusy(false)
+    }
+  }
+
+  async function onResume() {
+    setCancelBusy(true)
+    try {
+      await resumeSubscription(token)
+      await refresh()
+    } catch (err) {
+      setSyncError(err instanceof ApiError ? err.message : 'Could not undo cancellation')
+    } finally {
+      setCancelBusy(false)
+    }
+  }
 
   async function onChangePassword(event) {
     event.preventDefault()
@@ -148,14 +190,47 @@ export function HomePage() {
             </div>
             <h2>{(active || subscription).plan_name || 'Free'}</h2>
             <p className="lede">{remainingCopy(active || subscription)}</p>
+            {cancelling ? (
+              <Banner
+                title="Cancellation scheduled"
+                message={`You keep ${(active || subscription).plan_name} until ${endLabel || 'the period end'}. After that you return to Free.`}
+              />
+            ) : null}
             {pending ? (
               <p style={{ marginTop: 16 }}>
                 Upgrade to <strong>{pending.plan_name}</strong> is in progress.{' '}
                 <Link to="/payments">{pendingCtaLabel(pending.status)}</Link>
               </p>
             ) : null}
+            {paidActive && !cancelling ? (
+              <div style={{ marginTop: 16 }}>
+                <Button variant="secondary" onClick={() => setCancelOpen(true)}>Cancel plan</Button>
+              </div>
+            ) : null}
+            {paidActive && cancelling ? (
+              <div style={{ marginTop: 16 }}>
+                <Button variant="secondary" loading={cancelBusy} onClick={onResume}>Keep my plan</Button>
+              </div>
+            ) : null}
           </Card>
         )}
+
+        {cancelOpen ? (
+          <Modal
+            title="Cancel your plan?"
+            message={
+              `You will keep ${(active || {}).plan_name || 'this plan'} and its locate quota until ${endLabel || 'the renewal date'}. ` +
+              'After that date you move to Free (fewer locates and trusted numbers). ' +
+              'Listening, PIN, and trusted numbers stay on the phone.'
+            }
+            confirmLabel={cancelBusy ? 'Working…' : 'Cancel at period end'}
+            onConfirm={onConfirmCancel}
+            onDismiss={() => { if (!cancelBusy) setCancelOpen(false) }}
+          />
+        ) : null}
+        {cancelError ? (
+          <Modal title="Cancel plan" message={cancelError} confirmLabel="OK" onConfirm={() => setCancelError(null)} onDismiss={() => setCancelError(null)} />
+        ) : null}
 
         <Card>
           <h2>Use the Android app for Tracking</h2>
