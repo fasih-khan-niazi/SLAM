@@ -70,6 +70,7 @@ data class ActivityEvent(
 )
 
 data class ActivityUiState(
+    val loading: Boolean = true,
     val events: List<ActivityEvent> = emptyList(),
     val notifications: List<NotificationItem> = emptyList(),
     val syncWarning: String? = null,
@@ -82,14 +83,23 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
 
     init {
         refresh()
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(30_000)
+                refresh()
+            }
+        }
     }
 
     fun refresh() = viewModelScope.launch {
+            _state.value = _state.value.copy(loading = true)
             val accountId = AccountIdentity.current(getApplication())
             val local = SlamDatabase.get(getApplication()).locationHistory().latest(accountId)
-            _state.value = ActivityUiState(events = local.map { it.toEvent() })
-            val token = SessionStore(getApplication()).token.first()
+            _state.value = _state.value.copy(events = local.map { it.toEvent() })
+            val session = SessionStore(getApplication())
+            val token = session.token.first()
             if (token.isBlank()) {
+                _state.value = _state.value.copy(loading = false)
                 return@launch
             }
 
@@ -120,7 +130,16 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
             try {
                 val response = api.notifications("Bearer $token")
                 when {
-                    response.isSuccessful -> notifications = response.body()?.data?.notifications.orEmpty()
+                    response.isSuccessful -> {
+                        notifications = response.body()?.data?.notifications.orEmpty()
+                        notifications.firstOrNull { !it.read && it.kind == "payment" }?.let { note ->
+                            com.slam.app.notify.SlamNotify.paymentUpdate(
+                                getApplication(),
+                                note.title,
+                                note.body,
+                            )
+                        }
+                    }
                     response.code() == 401 -> sessionExpired = true
                 }
             } catch (_: Exception) {
@@ -130,6 +149,7 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
             val refreshedLocal = SlamDatabase.get(getApplication()).locationHistory().latest(accountId)
             val merged = mergeEvents(refreshedLocal, remote)
             _state.value = ActivityUiState(
+                loading = false,
                 events = merged,
                 notifications = notifications,
                 syncWarning = syncWarning,
@@ -165,12 +185,19 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
         local: List<LocationHistoryEntity>,
         remote: List<RemoteLocationLog>,
     ): List<ActivityEvent> {
-        val byKey = LinkedHashMap<String, ActivityEvent>()
-        remote.map { it.toEvent() }.forEach { byKey[it.key] = it }
-        local.map { it.toEvent() }.forEach { event ->
-            byKey.putIfAbsent(event.key, event)
+        val merged = ArrayList<ActivityEvent>()
+        remote.map { it.toEvent() }.forEach { remoteEvent ->
+            merged.add(remoteEvent)
         }
-        return byKey.values.sortedByDescending { it.timestampMs }
+        local.map { it.toEvent() }.forEach { localEvent ->
+            val duplicate = merged.any { existing ->
+                kotlin.math.abs(existing.timestampMs - localEvent.timestampMs) <= 5_000L &&
+                    kotlin.math.abs(existing.latitude - localEvent.latitude) < 1e-5 &&
+                    kotlin.math.abs(existing.longitude - localEvent.longitude) < 1e-5
+            }
+            if (!duplicate) merged.add(localEvent)
+        }
+        return merged.sortedByDescending { it.timestampMs }
     }
 
     private fun LocationHistoryEntity.toEvent() = ActivityEvent(
@@ -189,8 +216,9 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
 
     private fun RemoteLocationLog.toEvent(): ActivityEvent {
         val ts = parseTime(capturedAt) ?: parseTime(createdAt) ?: 0L
+        val dedupeKey = eventId?.takeIf { it.isNotBlank() } ?: "remote-$id"
         return ActivityEvent(
-            key = "remote-$id",
+            key = dedupeKey,
             title = when {
                 source.equals("LAST_KNOWN", ignoreCase = true) -> "Last-known fallback"
                 requestedBy.equals("emergency", ignoreCase = true) -> "Emergency update"
@@ -297,7 +325,18 @@ fun ActivityScreen(
                 color = MaterialTheme.colorScheme.onBackground,
             )
         }
-        if (state.events.isEmpty()) {
+        if (state.loading && state.events.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    SlamLottie(resId = R.raw.lottie_loading, size = 100.dp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Loading activity…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else if (state.events.isEmpty()) {
             item {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
