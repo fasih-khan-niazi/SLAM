@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LastLocationDao {
@@ -12,6 +13,9 @@ interface LastLocationDao {
 
     @Query("SELECT * FROM last_locations WHERE accountId = :accountId LIMIT 1")
     suspend fun get(accountId: String): LastLocationEntity?
+
+    @Query("SELECT * FROM last_locations WHERE accountId = :accountId LIMIT 1")
+    fun observe(accountId: String): Flow<LastLocationEntity?>
 
     @Query("DELETE FROM last_locations WHERE accountId = :accountId")
     suspend fun clear(accountId: String)
