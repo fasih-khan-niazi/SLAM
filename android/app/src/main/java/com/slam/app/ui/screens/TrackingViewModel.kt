@@ -17,11 +17,17 @@ import com.slam.app.permissions.CoreStatus
 import com.slam.app.security.PinLockout
 import com.slam.app.security.PinSenderLock
 import com.slam.app.security.PinStore
+import com.slam.app.sms.EmergencyScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -68,6 +74,7 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
                 _state.value = _state.value.copy(bootstrapped = true)
             }
             syncInBackground()
+            observeLiveState()
         }
         viewModelScope.launch {
             session.cachedRemaining.collect { remaining ->
@@ -76,6 +83,31 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
                     unlimited = remaining == Int.MAX_VALUE,
                 )
             }
+        }
+    }
+
+    /**
+     * Keeps the screen in step with the device without a manual refresh. Preference and database
+     * changes trigger a reload at once; the ticker covers things Android does not notify us about
+     * (location services toggled from the shade, PIN lock countdowns, emergency next-run).
+     */
+    private suspend fun observeLiveState() {
+        val app = getApplication<Application>()
+        val db = SlamDatabase.get(app)
+        val ticker = flow {
+            while (true) {
+                emit(Unit)
+                delay(LIVE_TICK_MS)
+            }
+        }
+        merge(
+            ListenerPrefs(app).listeningActiveFlow().map { },
+            EmergencyPrefs(app).changes(),
+            db.trustedNumbers().observeCount().map { },
+            db.eventLedger().observePendingCount().map { },
+            ticker,
+        ).conflate().collect {
+            runCatching { withContext(Dispatchers.IO) { loadFromCache() } }
         }
     }
 
@@ -118,6 +150,7 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
                         config.maintenance,
                         config.paymentsEnabled,
                     )
+                    runCatching { EmergencyScheduler.syncWithConfig(getApplication(), session.cachedEmergencyMinutes()) }
                 }
                 var plan = _state.value.planName
                 var limit = _state.value.limit
@@ -171,5 +204,9 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
             pendingOutbox = pending,
             pinLocks = PinLockout.lockedSenders(app),
         )
+    }
+
+    private companion object {
+        const val LIVE_TICK_MS = 5_000L
     }
 }

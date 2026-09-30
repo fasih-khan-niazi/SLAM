@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TrustedNumberDao {
@@ -16,6 +17,10 @@ interface TrustedNumberDao {
 
     @Query("SELECT COUNT(*) FROM trusted_numbers")
     suspend fun count(): Int
+
+    /** Re-emits whenever the table changes; used as a live-refresh trigger. */
+    @Query("SELECT COUNT(*) FROM trusted_numbers")
+    fun observeCount(): Flow<Int>
 
     @Query("SELECT COUNT(*) FROM trusted_numbers WHERE accountId IN (:accountId, 'legacy')")
     suspend fun count(accountId: String): Int
