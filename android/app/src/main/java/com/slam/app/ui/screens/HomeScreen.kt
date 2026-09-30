@@ -334,7 +334,7 @@ fun HomeScreen(
                         message = "Listening has stopped. Upgrade on the SLAM web portal or wait for your plan to renew.",
                         tone = SlamStatusTone.WARNING,
                     )
-                    Spacer(modifier.height(12.dp))
+                    Spacer(Modifier.height(12.dp))
                 }
                 if (state.pendingOutbox > 0) {
                     SlamBanner(
