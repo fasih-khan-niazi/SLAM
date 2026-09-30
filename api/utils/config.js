@@ -2,6 +2,11 @@ const SystemConfig = require('../models/SystemConfig')
 
 const DEFAULT_MERCHANT = '03300490019'
 
+const PIN_ATTEMPT_CAP_MIN = 1
+const PIN_ATTEMPT_CAP_MAX = 5
+const EMERGENCY_MINUTES_MIN = 5
+const EMERGENCY_MINUTES_MAX = 1440
+
 const DEFAULTS = {
   sms_prefix: 'SLAM',
   pin_min_length: 4,
@@ -50,7 +55,7 @@ function publicFields(row) {
     sms_prefix: row.sms_prefix || DEFAULTS.sms_prefix,
     pin_min_length: pinMin,
     pin_max_length: pinMax,
-    pin_attempt_cap: clampInt(row.pin_attempt_cap, 3, 1, 30),
+    pin_attempt_cap: clampInt(row.pin_attempt_cap, 3, PIN_ATTEMPT_CAP_MIN, PIN_ATTEMPT_CAP_MAX),
     pin_window_minutes: clampInt(row.pin_window_minutes, 15, 1, 1440),
     login_attempt_cap: clampInt(row.login_attempt_cap, 3, 1, 30),
     login_window_minutes: clampInt(row.login_window_minutes, 15, 1, 1440),
@@ -76,6 +81,26 @@ function resolveEmergencyMinutes(row) {
   return 60
 }
 
+function isIntegerInRange(value, min, max) {
+  if (value === '' || value === null || typeof value === 'boolean') return false
+  const n = Number(value)
+  return Number.isInteger(n) && n >= min && n <= max
+}
+
+/** Returns human-readable problems; empty when the admin patch is acceptable. */
+function validateConfigPatch(body) {
+  const errors = []
+  if (body.pin_attempt_cap != null &&
+      !isIntegerInRange(body.pin_attempt_cap, PIN_ATTEMPT_CAP_MIN, PIN_ATTEMPT_CAP_MAX)) {
+    errors.push(`pin_attempt_cap must be a whole number from ${PIN_ATTEMPT_CAP_MIN} to ${PIN_ATTEMPT_CAP_MAX}`)
+  }
+  if (body.emergency_interval_minutes != null &&
+      !isIntegerInRange(body.emergency_interval_minutes, EMERGENCY_MINUTES_MIN, EMERGENCY_MINUTES_MAX)) {
+    errors.push(`emergency_interval_minutes must be a whole number from ${EMERGENCY_MINUTES_MIN} to ${EMERGENCY_MINUTES_MAX}`)
+  }
+  return errors
+}
+
 async function getSystemConfig() {
   const row = await SystemConfig.findOne({ order: [['id', 'ASC']] })
   if (!row) {
@@ -91,6 +116,7 @@ async function getSystemConfig() {
 module.exports = {
   getSystemConfig,
   publicFields,
+  validateConfigPatch,
   DEFAULTS,
   DEFAULT_MERCHANT,
   normalizeMerchant,

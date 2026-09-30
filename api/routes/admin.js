@@ -6,6 +6,7 @@ const { approvePayment, rejectPayment } = require('../utils/paymentReview')
 const {
   getSystemConfig,
   publicFields,
+  validateConfigPatch,
   normalizeMerchant,
   envMerchant,
   DEFAULTS,
@@ -294,6 +295,8 @@ router.patch('/config', async (req, res) => {
     }
 
     const body = req.body || {}
+    const problems = validateConfigPatch(body)
+    if (problems.length) return fail(res, 400, problems.join('; '))
     const fields = {}
 
     if (body.sms_prefix != null) {

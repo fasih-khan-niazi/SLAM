@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs')
-const { DataTypes } = require('sequelize')
+const { DataTypes, Op } = require('sequelize')
 const sequelize = require('../config/database')
 const User = require('./User')
 const SubscriptionPlan = require('./SubscriptionPlan')
@@ -136,6 +136,11 @@ async function ensureSystemConfigColumns() {
   await SystemConfig.update(
     { pin_attempt_cap: 3 },
     { where: { pin_attempt_cap: 8 } }
+  )
+  // Admin bounds are 1-5; pull any older out-of-range value back inside.
+  await SystemConfig.update(
+    { pin_attempt_cap: 5 },
+    { where: { pin_attempt_cap: { [Op.gt]: 5 } } }
   )
 
   // Backfill blank merchant fields so the portal never shows empty numbers.
