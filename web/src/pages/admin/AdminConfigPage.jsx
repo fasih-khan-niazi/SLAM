@@ -20,6 +20,19 @@ function Toggle({ label, hint, checked, onChange }) {
   )
 }
 
+const PIN_CAP_MIN = 1
+const PIN_CAP_MAX = 5
+const EMERGENCY_MIN = 5
+const EMERGENCY_MAX = 1440
+
+function rangeError(value, min, max, what) {
+  const n = Number(value)
+  if (value === '' || !Number.isInteger(n) || n < min || n > max) {
+    return `${what} must be a whole number from ${min} to ${max}.`
+  }
+  return ''
+}
+
 export function AdminConfigPage() {
   const { token } = useAuth()
   const { refreshConfig } = useConfig()
@@ -38,7 +51,16 @@ export function AdminConfigPage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  const pinCapError = form ? rangeError(form.pin_attempt_cap ?? 3, PIN_CAP_MIN, PIN_CAP_MAX, 'Max wrong attempts') : ''
+  const emergencyValue = form
+    ? (form.emergency_interval_minutes
+        ?? (form.emergency_interval_hours != null ? form.emergency_interval_hours * 60 : 60))
+    : 60
+  const emergencyError = form ? rangeError(emergencyValue, EMERGENCY_MIN, EMERGENCY_MAX, 'Minutes between SMS') : ''
+  const hasErrors = Boolean(pinCapError || emergencyError)
+
   async function save() {
+    if (hasErrors) return
     setBusy(true)
     setError(null)
     try {
@@ -75,12 +97,12 @@ export function AdminConfigPage() {
         <>
           <section className="admin-section">
             <h2>SMS and PIN</h2>
-            <p className="section-lede">Command prefix and PIN length rules on the phone.</p>
+            <p className="section-lede">Command prefix and PIN length rules on the phone. Wrong-PIN attempts allowed is 1 to 5; a sender who reaches it is locked out for the window.</p>
             <div className="stack-lg">
               <Field id="sms_prefix" label="SMS prefix" value={form.sms_prefix || ''} onChange={(v) => set('sms_prefix', v)} />
               <Field id="pin_min" label="PIN min length" type="number" integerMode="positive" min={1} value={String(form.pin_min_length ?? 4)} onChange={(v) => set('pin_min_length', v === '' ? '' : Number(v))} />
               <Field id="pin_max" label="PIN max length" type="number" integerMode="positive" min={1} value={String(form.pin_max_length ?? 6)} onChange={(v) => set('pin_max_length', v === '' ? '' : Number(v))} />
-              <Field id="pin_cap" label="SMS PIN — max wrong attempts" type="number" integerMode="positive" min={1} value={String(form.pin_attempt_cap ?? 3)} onChange={(v) => set('pin_attempt_cap', v === '' ? '' : Number(v))} />
+              <Field id="pin_cap" label="SMS PIN — max wrong attempts" type="number" integerMode="positive" min={PIN_CAP_MIN} max={PIN_CAP_MAX} error={pinCapError} value={String(form.pin_attempt_cap ?? 3)} onChange={(v) => set('pin_attempt_cap', v === '' ? '' : Number(v))} />
               <Field id="pin_window" label="SMS PIN — window (minutes)" type="number" integerMode="positive" min={1} value={String(form.pin_window_minutes ?? 15)} onChange={(v) => set('pin_window_minutes', v === '' ? '' : Number(v))} />
             </div>
           </section>
@@ -108,16 +130,14 @@ export function AdminConfigPage() {
               label="Minutes between SMS"
               type="number"
               integerMode="positive"
-              min={5}
-              max={1440}
-              value={String(
-                form.emergency_interval_minutes
-                  ?? (form.emergency_interval_hours != null ? form.emergency_interval_hours * 60 : 60)
-              )}
+              min={EMERGENCY_MIN}
+              max={EMERGENCY_MAX}
+              error={emergencyError}
+              value={String(emergencyValue)}
               onChange={(v) => set('emergency_interval_minutes', v === '' ? '' : Number(v))}
             />
             <p className="muted" style={{ marginTop: 8, fontSize: '0.85rem' }}>
-              Minimum 5 minutes. Phones schedule the next emergency SMS after each send. Default is 60.
+              Between 5 minutes and 1440 (one day). Phones schedule the next emergency SMS after each send. Default is 60.
             </p>
           </section>
 
@@ -169,7 +189,7 @@ export function AdminConfigPage() {
           </section>
 
           <div className="admin-toolbar">
-            <Button onClick={save} loading={busy} disabled={busy}>Save config</Button>
+            <Button onClick={save} loading={busy} disabled={busy || hasErrors}>Save config</Button>
           </div>
         </>
       ) : null}
