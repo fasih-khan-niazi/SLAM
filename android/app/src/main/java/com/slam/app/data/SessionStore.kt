@@ -86,7 +86,7 @@ class SessionStore(private val context: Context) {
         maintenance: Boolean? = null,
         paymentsEnabled: Boolean? = null,
     ) {
-        val cap = pinCap?.takeIf { it in 1..30 } ?: 3
+        val cap = pinCap?.coerceIn(1, 5) ?: 3
         val window = windowMinutes?.takeIf { it in 1..1440 } ?: 15
         val minutes = emergencyMinutes?.takeIf { it in 5..1440 } ?: 60
         val minPin = pinMinLength?.coerceIn(4, 8) ?: 4
