@@ -23,6 +23,12 @@ object TrustedContactsSync {
 
         val accountId = AccountIdentity.current(context)
         val dao = SlamDatabase.get(context).trustedNumbers()
+        if (numbers.isEmpty()) {
+            // Nothing in the cloud yet (for example contacts added before sync existed):
+            // keep this phone's list and upload it instead of wiping it.
+            if (dao.count(accountId) > 0) push(context)
+            return true
+        }
         dao.clear(accountId)
         numbers.forEach { item ->
             val normalized = PhoneNumbers.digits(item.phone).ifBlank { return@forEach }
