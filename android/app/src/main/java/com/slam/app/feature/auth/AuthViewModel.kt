@@ -41,6 +41,14 @@ class AuthRepository(
         val response = api.login(LoginBody(email.trim().lowercase(), password))
         val body = response.body()
         if (!response.isSuccessful || body?.success != true || body.data == null) {
+            // Only a rejected email/password counts toward the lockout. A server error, a rate
+            // limit or a suspended account must not burn tries or look like a wrong password.
+            if (response.code() != 401) {
+                val serverMessage = runCatching {
+                    org.json.JSONObject(response.errorBody()?.string().orEmpty()).optString("message")
+                }.getOrNull().orEmpty()
+                error(serverMessage.ifBlank { "Could not sign in right now. Please try again." })
+            }
             when (val status = lockout.recordFailure()) {
                 is LoginLockoutStore.LockoutStatus.Failed ->
                     error(

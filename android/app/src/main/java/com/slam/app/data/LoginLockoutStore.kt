@@ -23,6 +23,14 @@ class LoginLockoutStore(private val context: Context) {
     suspend fun failures(): Int =
         context.loginLockStore.data.map { it[KEY_FAILS] ?: 0 }.first()
 
+    /** Applies the admin's sign-in limits (synced from /api/config). */
+    suspend fun applyConfig(attemptCap: Int?, windowMinutes: Int?) {
+        context.loginLockStore.edit { prefs ->
+            prefs[KEY_CAP] = (attemptCap ?: DEFAULT_CAP).coerceIn(1, 30)
+            prefs[KEY_WINDOW_MIN] = (windowMinutes ?: DEFAULT_WINDOW_MINUTES).coerceIn(1, 1440)
+        }
+    }
+
     suspend fun recordFailure(now: Long = System.currentTimeMillis()): LockoutStatus {
         if (isLocked(now)) {
             val minutes = ceil(remainingLockSeconds(now) / 60.0).toInt().coerceAtLeast(1)
@@ -30,20 +38,24 @@ class LoginLockoutStore(private val context: Context) {
         }
         var fails = 0
         var locked = false
+        var cap = DEFAULT_CAP
+        var windowMinutes = DEFAULT_WINDOW_MINUTES
         context.loginLockStore.edit { prefs ->
+            cap = prefs[KEY_CAP] ?: DEFAULT_CAP
+            windowMinutes = prefs[KEY_WINDOW_MIN] ?: DEFAULT_WINDOW_MINUTES
             fails = (prefs[KEY_FAILS] ?: 0) + 1
-            if (fails >= MAX_FAILURES) {
-                prefs[KEY_FAILS] = MAX_FAILURES
-                prefs[KEY_UNTIL] = now + LOCK_MS
+            if (fails >= cap) {
+                prefs[KEY_FAILS] = cap
+                prefs[KEY_UNTIL] = now + windowMinutes * 60_000L
                 locked = true
             } else {
                 prefs[KEY_FAILS] = fails
             }
         }
         return if (locked) {
-            LockoutStatus.Locked(minutesRemaining = 15)
+            LockoutStatus.Locked(minutesRemaining = windowMinutes)
         } else {
-            LockoutStatus.Failed(triesLeft = MAX_FAILURES - fails)
+            LockoutStatus.Failed(triesLeft = cap - fails)
         }
     }
 
@@ -62,7 +74,9 @@ class LoginLockoutStore(private val context: Context) {
     private companion object {
         val KEY_FAILS = intPreferencesKey("fails")
         val KEY_UNTIL = longPreferencesKey("until")
-        const val MAX_FAILURES = 3
-        const val LOCK_MS = 15L * 60L * 1_000L
+        val KEY_CAP = intPreferencesKey("cap")
+        val KEY_WINDOW_MIN = intPreferencesKey("window_minutes")
+        const val DEFAULT_CAP = 3
+        const val DEFAULT_WINDOW_MINUTES = 15
     }
 }

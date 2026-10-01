@@ -28,6 +28,7 @@ object SessionWarmup {
                     config.maintenance,
                     config.paymentsEnabled,
                 )
+                LoginLockoutStore(context).applyConfig(config.loginAttemptCap, config.loginWindowMinutes)
                 EmergencyScheduler.syncWithConfig(context, session.cachedEmergencyMinutes())
             }
             if (token.isBlank()) return@runCatching
