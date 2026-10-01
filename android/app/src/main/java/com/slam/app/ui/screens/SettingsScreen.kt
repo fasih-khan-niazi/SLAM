@@ -73,6 +73,13 @@ fun SettingsScreen(
     var quietRun by remember { mutableStateOf(0L) }
     var quietResult by remember { mutableStateOf("") }
     var batteryUnrestricted by remember { mutableStateOf(false) }
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            nowMs = System.currentTimeMillis()
+        }
+    }
 
     LaunchedEffect(Unit) {
         quietPrefs.changes().collect {
@@ -181,14 +188,14 @@ fun SettingsScreen(
                     if (saved == null) {
                         "No saved location yet. SLAM saves one quietly about every 15 minutes while listening is on."
                     } else {
-                        val age = formatAge((System.currentTimeMillis() - saved.locationTimestamp).coerceAtLeast(0))
+                        val age = formatAge((nowMs - saved.locationTimestamp).coerceAtLeast(0))
                         val accuracy = saved.accuracyMeters?.let { " (±${it.toInt()} m)" }.orEmpty()
                         "Saved location: ${if (age == "just now") age else "$age ago"}$accuracy"
                     },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (quietRun > 0L) {
-                    val runAge = formatAge((System.currentTimeMillis() - quietRun).coerceAtLeast(0))
+                    val runAge = formatAge((nowMs - quietRun).coerceAtLeast(0))
                     Text(
                         "Last background check: ${if (runAge == "just now") runAge else "$runAge ago"}. $quietResult.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
