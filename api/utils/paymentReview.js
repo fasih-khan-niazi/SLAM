@@ -2,7 +2,7 @@ const { sendEmail } = require('./email')
 const { paymentApprovedEmail, paymentRejectedEmail } = require('./emailTemplates')
 const { notifyUser } = require('./notify')
 const { cancelOtherActiveSubscriptions } = require('./subscription')
-const { Payment, Subscription, SubscriptionPlan, User } = require('../models')
+const { sequelize, Payment, Subscription, SubscriptionPlan, User } = require('../models')
 
 async function loadPaymentForReview(paymentId) {
   return Payment.findByPk(paymentId, {
@@ -13,36 +13,59 @@ async function loadPaymentForReview(paymentId) {
   })
 }
 
-async function approvePayment(paymentId, reviewerEmail) {
-  const payment = await loadPaymentForReview(paymentId)
-  if (!payment) {
-    const err = new Error('Payment not found')
-    err.status = 404
-    throw err
-  }
-  if (payment.status !== 'pending') {
-    const err = new Error(`Payment is already ${payment.status}`)
-    err.status = 400
-    throw err
-  }
+function reviewError(message, status) {
+  const err = new Error(message)
+  err.status = status
+  return err
+}
 
-  await payment.update({
-    status: 'approved',
-    approved_at: new Date(),
-    reviewed_by: reviewerEmail || null,
+/** Loads the payment inside a transaction and locks it so two reviewers cannot both act on it. */
+async function loadPendingPayment(paymentId, transaction) {
+  // Lock only the payment row (MySQL cannot lock outer-joined rows), then load the joins.
+  const locked = await Payment.findByPk(paymentId, { transaction, lock: transaction.LOCK.UPDATE })
+  if (!locked) throw reviewError('Payment not found', 404)
+  if (locked.status !== 'pending') throw reviewError('Payment is already ' + locked.status, 400)
+  return Payment.findByPk(paymentId, {
+    include: [
+      { model: SubscriptionPlan, as: 'plan' },
+      { model: User },
+    ],
+    transaction,
+  })
+}
+
+async function approvePayment(paymentId, reviewerEmail) {
+  // The payment, the old plan and the new plan change together or not at all.
+  const payment = await sequelize.transaction(async (transaction) => {
+    const pending = await loadPendingPayment(paymentId, transaction)
+
+    const subscription = await Subscription.findByPk(pending.subscription_id, { transaction })
+    if (!subscription || !['pending_payment', 'pending_approval'].includes(subscription.status)) {
+      throw reviewError('This subscription is no longer waiting for payment', 400)
+    }
+
+    await pending.update(
+      {
+        status: 'approved',
+        approved_at: new Date(),
+        reviewed_by: reviewerEmail || null,
+      },
+      { transaction }
+    )
+
+    const today = new Date()
+    const endDate = new Date()
+    endDate.setDate(endDate.getDate() + 30)
+
+    await cancelOtherActiveSubscriptions(pending.user_id, pending.subscription_id, transaction)
+    await subscription.update(
+      { status: 'active', start_date: today, end_date: endDate, requests_used: 0 },
+      { transaction }
+    )
+    return pending
   })
 
-  const today = new Date()
-  const endDate = new Date()
-  endDate.setDate(endDate.getDate() + 30)
-
-  await cancelOtherActiveSubscriptions(payment.user_id, payment.subscription_id)
-
-  await Subscription.update(
-    { status: 'active', start_date: today, end_date: endDate },
-    { where: { id: payment.subscription_id } }
-  )
-
+  // Notices go out after the commit so a mail failure can never undo an approval.
   if (payment.User) {
     await notifyUser(
       payment.user_id,
@@ -66,27 +89,18 @@ async function approvePayment(paymentId, reviewerEmail) {
 }
 
 async function rejectPayment(paymentId, reviewerEmail) {
-  const payment = await loadPaymentForReview(paymentId)
-  if (!payment) {
-    const err = new Error('Payment not found')
-    err.status = 404
-    throw err
-  }
-  if (payment.status !== 'pending') {
-    const err = new Error(`Payment is already ${payment.status}`)
-    err.status = 400
-    throw err
-  }
-
-  await payment.update({
-    status: 'rejected',
-    reviewed_by: reviewerEmail || null,
+  const payment = await sequelize.transaction(async (transaction) => {
+    const pending = await loadPendingPayment(paymentId, transaction)
+    await pending.update(
+      { status: 'rejected', reviewed_by: reviewerEmail || null },
+      { transaction }
+    )
+    await Subscription.update(
+      { status: 'pending_payment' },
+      { where: { id: pending.subscription_id }, transaction }
+    )
+    return pending
   })
-
-  await Subscription.update(
-    { status: 'pending_payment' },
-    { where: { id: payment.subscription_id } }
-  )
 
   if (payment.User) {
     await notifyUser(
