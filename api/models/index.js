@@ -390,6 +390,22 @@ async function ensureSubscriptionPausedStatus() {
   }
 }
 
+async function ensureUserPasswordColumn() {
+  const qi = sequelize.getQueryInterface()
+  let table
+  try {
+    table = await qi.describeTable('users')
+  } catch {
+    return
+  }
+  if (!table.password_changed_at) {
+    await qi.addColumn('users', 'password_changed_at', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    })
+  }
+}
+
 async function syncDatabase() {
   try {
     await sequelize.authenticate()
@@ -402,6 +418,7 @@ async function syncDatabase() {
     await ensurePaymentColumns()
     await ensureLocationLogColumns()
     await ensureUserPinColumns()
+    await ensureUserPasswordColumn()
     await ensureSubscriptionPausedStatus()
     await seedPlans()
     await seedAdmin()

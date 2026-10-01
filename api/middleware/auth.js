@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken')
 const { User } = require('../models')
+const { issuedBeforePasswordChange } = require('../utils/session')
 
 function readCookieToken(req) {
   const header = req.headers.cookie || ''
@@ -33,12 +34,28 @@ const protect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    // Password-reset links are signed with the same secret; they must never act as a login.
+    if (decoded.purpose) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token is invalid or expired. Please sign in again.',
+        data: null,
+      })
+    }
     const user = await User.findByPk(decoded.id)
 
     if (!user) {
       return res.status(401).json({
         success: false,
         message: 'Account no longer exists.',
+        data: null,
+      })
+    }
+
+    if (issuedBeforePasswordChange(decoded, user)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Your password was changed. Please sign in again.',
         data: null,
       })
     }
