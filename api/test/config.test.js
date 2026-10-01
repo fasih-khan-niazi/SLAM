@@ -88,6 +88,24 @@ describe('validateConfigPatch', () => {
     }
   })
 
+  it('validates the other admin fields', () => {
+    assert.deepEqual(validateConfigPatch({
+      sms_prefix: 'slam',
+      pin_min_length: 4,
+      pin_max_length: 8,
+      pin_window_minutes: 15,
+      login_attempt_cap: 3,
+      login_window_minutes: 15,
+    }), [])
+    assert.equal(validateConfigPatch({ sms_prefix: 'A' }).length, 1)
+    assert.equal(validateConfigPatch({ sms_prefix: 'MY PREFIX' }).length, 1)
+    assert.equal(validateConfigPatch({ pin_min_length: 3 }).length, 1)
+    assert.equal(validateConfigPatch({ pin_max_length: 9 }).length, 1)
+    assert.equal(validateConfigPatch({ pin_window_minutes: 0 }).length, 1)
+    assert.equal(validateConfigPatch({ login_attempt_cap: 31 }).length, 1)
+    assert.equal(validateConfigPatch({ login_window_minutes: 1441 }).length, 1)
+  })
+
   it('ignores fields that are not present', () => {
     assert.deepEqual(validateConfigPatch({ maintenance: true }), [])
   })

@@ -81,6 +81,21 @@ function resolveEmergencyMinutes(row) {
   return 60
 }
 
+// Allowed whole-number ranges for admin-editable settings.
+const INTEGER_RULES = {
+  pin_min_length: { min: 4, max: 8, label: 'pin_min_length' },
+  pin_max_length: { min: 4, max: 8, label: 'pin_max_length' },
+  pin_attempt_cap: { min: PIN_ATTEMPT_CAP_MIN, max: PIN_ATTEMPT_CAP_MAX, label: 'pin_attempt_cap' },
+  pin_window_minutes: { min: 1, max: 1440, label: 'pin_window_minutes' },
+  login_attempt_cap: { min: 1, max: 30, label: 'login_attempt_cap' },
+  login_window_minutes: { min: 1, max: 1440, label: 'login_window_minutes' },
+  emergency_interval_minutes: {
+    min: EMERGENCY_MINUTES_MIN,
+    max: EMERGENCY_MINUTES_MAX,
+    label: 'emergency_interval_minutes',
+  },
+}
+
 function isIntegerInRange(value, min, max) {
   if (value === '' || value === null || typeof value === 'boolean') return false
   const n = Number(value)
@@ -90,13 +105,13 @@ function isIntegerInRange(value, min, max) {
 /** Returns human-readable problems; empty when the admin patch is acceptable. */
 function validateConfigPatch(body) {
   const errors = []
-  if (body.pin_attempt_cap != null &&
-      !isIntegerInRange(body.pin_attempt_cap, PIN_ATTEMPT_CAP_MIN, PIN_ATTEMPT_CAP_MAX)) {
-    errors.push(`pin_attempt_cap must be a whole number from ${PIN_ATTEMPT_CAP_MIN} to ${PIN_ATTEMPT_CAP_MAX}`)
+  for (const [key, rule] of Object.entries(INTEGER_RULES)) {
+    if (body[key] != null && !isIntegerInRange(body[key], rule.min, rule.max)) {
+      errors.push(`${rule.label} must be a whole number from ${rule.min} to ${rule.max}`)
+    }
   }
-  if (body.emergency_interval_minutes != null &&
-      !isIntegerInRange(body.emergency_interval_minutes, EMERGENCY_MINUTES_MIN, EMERGENCY_MINUTES_MAX)) {
-    errors.push(`emergency_interval_minutes must be a whole number from ${EMERGENCY_MINUTES_MIN} to ${EMERGENCY_MINUTES_MAX}`)
+  if (body.sms_prefix != null && !/^[A-Za-z0-9]{2,12}$/.test(String(body.sms_prefix).trim())) {
+    errors.push('sms_prefix must be 2 to 12 letters or digits')
   }
   return errors
 }
