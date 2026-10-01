@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -183,27 +184,40 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
         val limit = session.quotaLimit()
         val accountId = AccountIdentity.current(app)
         val pending = SlamDatabase.get(app).eventLedger().pending(accountId).size
-        _state.value = _state.value.copy(
-            planName = session.cachedPlanName(),
-            remaining = remaining.takeUnless { it == Int.MAX_VALUE },
-            unlimited = unlimited || remaining == Int.MAX_VALUE || limit < 0,
-            limit = limit.takeUnless { it < 0 },
-            pinReady = pinStore.hasPin(),
-            pinMinLength = minPin,
-            pinMaxLength = maxPin,
-            smsPrefix = session.cachedSmsPrefix(),
-            emergencyAllowed = session.cachedEmergencyEnabled(),
-            emergencyMinutes = session.cachedEmergencyMinutes(),
-            contacts = SlamDatabase.get(app).trustedNumbers().all(),
-            maxContacts = session.cachedMaxContacts(),
-            prerequisites = CorePrerequisites.status(app),
-            listening = ListenerPrefs(app).isListening() && ListenerPrefs(app).isServiceActive(),
-            emergencyOn = EmergencyPrefs(app).isOn(),
-            emergencyLastResult = EmergencyPrefs(app).lastResult(),
-            emergencyNextRun = EmergencyPrefs(app).nextRun(),
-            pendingOutbox = pending,
-            pinLocks = PinLockout.lockedSenders(app),
-        )
+        // Read everything first, then apply in one atomic update. Several callers run this
+        // concurrently now, and a copy taken before the reads would overwrite newer state.
+        val planName = session.cachedPlanName()
+        val smsPrefix = session.cachedSmsPrefix()
+        val emergencyAllowed = session.cachedEmergencyEnabled()
+        val emergencyMinutes = session.cachedEmergencyMinutes()
+        val contacts = SlamDatabase.get(app).trustedNumbers().all()
+        val maxContacts = session.cachedMaxContacts()
+        val pinLocks = PinLockout.lockedSenders(app)
+        val listenerPrefs = ListenerPrefs(app)
+        val emergencyPrefs = EmergencyPrefs(app)
+        _state.update {
+            it.copy(
+                planName = planName,
+                remaining = remaining.takeUnless { value -> value == Int.MAX_VALUE },
+                unlimited = unlimited || remaining == Int.MAX_VALUE || limit < 0,
+                limit = limit.takeUnless { value -> value < 0 },
+                pinReady = pinStore.hasPin(),
+                pinMinLength = minPin,
+                pinMaxLength = maxPin,
+                smsPrefix = smsPrefix,
+                emergencyAllowed = emergencyAllowed,
+                emergencyMinutes = emergencyMinutes,
+                contacts = contacts,
+                maxContacts = maxContacts,
+                prerequisites = CorePrerequisites.status(app),
+                listening = listenerPrefs.isListening() && listenerPrefs.isServiceActive(),
+                emergencyOn = emergencyPrefs.isOn(),
+                emergencyLastResult = emergencyPrefs.lastResult(),
+                emergencyNextRun = emergencyPrefs.nextRun(),
+                pendingOutbox = pending,
+                pinLocks = pinLocks,
+            )
+        }
     }
 
     private companion object {
