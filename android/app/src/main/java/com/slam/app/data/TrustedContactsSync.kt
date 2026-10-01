@@ -11,10 +11,25 @@ import com.slam.app.sms.PhoneNumbers
 import kotlinx.coroutines.flow.first
 
 object TrustedContactsSync {
+    private const val PREFS = "slam_contacts_sync"
+
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    /** True while this phone has contact edits the cloud has not accepted yet. */
+    private fun isDirty(context: Context): Boolean =
+        prefs(context).getBoolean("dirty:${AccountIdentity.current(context)}", false)
+
+    private fun setDirty(context: Context, dirty: Boolean) {
+        prefs(context).edit().putBoolean("dirty:${AccountIdentity.current(context)}", dirty).apply()
+    }
+
     suspend fun pull(context: Context): Boolean {
         val session = SessionStore(context)
         val token = session.token.first()
         if (token.isBlank()) return false
+        // Unsynced local edits win: send them first so a pull never reverts them.
+        if (isDirty(context)) return push(context)
         val response = runCatching {
             SlamApiFactory.create(BuildConfig.API_BASE_URL).getTrustedNumbers("Bearer $token")
         }.getOrNull() ?: return false
@@ -50,6 +65,7 @@ object TrustedContactsSync {
         val session = SessionStore(context)
         val token = session.token.first()
         if (token.isBlank()) return false
+        setDirty(context, true)
         val accountId = AccountIdentity.current(context)
         val local = SlamDatabase.get(context).trustedNumbers().all(accountId)
         val body = TrustedNumbersBody(
@@ -60,6 +76,10 @@ object TrustedContactsSync {
         val response = runCatching {
             SlamApiFactory.create(BuildConfig.API_BASE_URL).putTrustedNumbers("Bearer $token", body)
         }.getOrNull() ?: return false
-        return response.isSuccessful
+        val accepted = response.isSuccessful
+        // A 4xx means the server refused this list (for example over the plan's contact cap);
+        // retrying the same list cannot succeed, so stop treating it as pending.
+        if (accepted || response.code() in 400..499) setDirty(context, false)
+        return accepted
     }
 }
