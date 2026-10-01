@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { setUnauthorizedHandler } from '../api/client'
 import {
   changePassword as changePasswordRequest,
   getMe,
@@ -30,6 +31,7 @@ export function AuthProvider({ children }) {
   })
   const [subscription, setSubscription] = useState(null)
   const [ready, setReady] = useState(false)
+  const [sessionNotice, setSessionNotice] = useState('')
 
   function persist(nextToken, nextUser, nextSubscription) {
     setToken(nextToken || '')
@@ -42,6 +44,15 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
   }
+
+  // A rejected token (expired, or the password changed elsewhere) signs the user out cleanly.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      persist('', null, null)
+      setSessionNotice('Your session ended. Please sign in again.')
+    })
+    return () => setUnauthorizedHandler(null)
+  }, [])
 
   useEffect(() => {
     getMe(token || undefined)
@@ -56,6 +67,7 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const res = await loginAccount({ email, password })
+    setSessionNotice('')
     persist(res.data.token, res.data.user, res.data.subscription)
     return res
   }
@@ -82,10 +94,16 @@ export function AuthProvider({ children }) {
   }
 
   async function changePassword(currentPassword, newPassword) {
-    await changePasswordRequest(token, {
+    const res = await changePasswordRequest(token, {
       current_password: currentPassword,
       new_password: newPassword,
     })
+    // Other devices are signed out by the server; this one gets a fresh token.
+    if (res?.data?.token) persist(res.data.token, user, subscription)
+  }
+
+  function clearSessionNotice() {
+    setSessionNotice('')
   }
 
   const isAdmin = user?.role === 'admin'
@@ -96,12 +114,14 @@ export function AuthProvider({ children }) {
     subscription,
     ready,
     isAdmin,
+    sessionNotice,
+    clearSessionNotice,
     login,
     register,
     logout,
     refresh,
     changePassword,
-  }), [token, user, subscription, ready, isAdmin])
+  }), [token, user, subscription, ready, isAdmin, sessionNotice])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth, homePathForUser } from '../context/AuthContext'
 import { ApiError } from '../api/client'
+import { Banner } from '../components/Banner'
 import { Button } from '../components/Button'
 import { Field } from '../components/Field'
 import { Logo } from '../components/Logo'
 import { Modal } from '../components/Modal'
 
 export function LoginPage() {
-  const { user, login } = useAuth()
+  const { user, login, sessionNotice } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail] = useState('')
@@ -51,6 +52,7 @@ export function LoginPage() {
           <p>Secure location by SMS</p>
         </div>
       </div>
+      {sessionNotice ? <Banner tone="warning" title="Signed out" message={sessionNotice} /> : null}
       <h1>Welcome back</h1>
       <p className="lede">Sign in to manage your plan and payments.</p>
       <form className="stack-lg" style={{ marginTop: 28 }} onSubmit={onSubmit}>
