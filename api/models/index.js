@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs')
-const { DataTypes } = require('sequelize')
+const { DataTypes, Op } = require('sequelize')
 const sequelize = require('../config/database')
 const User = require('./User')
 const SubscriptionPlan = require('./SubscriptionPlan')
@@ -136,6 +136,11 @@ async function ensureSystemConfigColumns() {
   await SystemConfig.update(
     { pin_attempt_cap: 3 },
     { where: { pin_attempt_cap: 8 } }
+  )
+  // Admin bounds are 1-5; pull any older out-of-range value back inside.
+  await SystemConfig.update(
+    { pin_attempt_cap: 5 },
+    { where: { pin_attempt_cap: { [Op.gt]: 5 } } }
   )
 
   // Backfill blank merchant fields so the portal never shows empty numbers.
@@ -385,6 +390,22 @@ async function ensureSubscriptionPausedStatus() {
   }
 }
 
+async function ensureUserPasswordColumn() {
+  const qi = sequelize.getQueryInterface()
+  let table
+  try {
+    table = await qi.describeTable('users')
+  } catch {
+    return
+  }
+  if (!table.password_changed_at) {
+    await qi.addColumn('users', 'password_changed_at', {
+      type: DataTypes.DATE,
+      allowNull: true,
+    })
+  }
+}
+
 async function syncDatabase() {
   try {
     await sequelize.authenticate()
@@ -397,6 +418,7 @@ async function syncDatabase() {
     await ensurePaymentColumns()
     await ensureLocationLogColumns()
     await ensureUserPinColumns()
+    await ensureUserPasswordColumn()
     await ensureSubscriptionPausedStatus()
     await seedPlans()
     await seedAdmin()

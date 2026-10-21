@@ -41,6 +41,11 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING(128),
     allowNull: true,
   },
+  // Tokens issued before this moment are rejected (set on every password change/reset).
+  password_changed_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
 }, {
   tableName: 'users',
   timestamps: true,

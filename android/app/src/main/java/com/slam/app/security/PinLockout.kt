@@ -28,7 +28,7 @@ object PinLockout {
 
     suspend fun attemptCap(context: Context): Int {
         val cached = runCatching { SessionStore(context).cachedPinAttemptCap() }.getOrNull()
-        return (cached ?: DEFAULT_ATTEMPT_CAP).coerceIn(1, 30)
+        return (cached ?: DEFAULT_ATTEMPT_CAP).coerceIn(1, 5)
     }
 
     suspend fun lockedSenders(context: Context): List<PinSenderLock> {

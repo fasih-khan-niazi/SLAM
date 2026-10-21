@@ -42,6 +42,11 @@ class OutboxDispatcher(private val context: Context) {
                         planName = data?.planName,
                         monthlyLimit = data?.monthlyLimit,
                     )
+                } else if (response.code() == 401) {
+                    // Session expired or the password changed elsewhere. Keep the event queued
+                    // so it uploads after the user signs in again.
+                    dao.markAttempt(entry.eventId)
+                    return false
                 } else if (response.code() == 403) {
                     dao.markFailed(entry.eventId)
                     runCatching {

@@ -1,5 +1,24 @@
 const { Subscription, SubscriptionPlan, LocationLog } = require('../models')
 const { Op } = require('sequelize')
+const { notifyUser } = require('./notify')
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * What should happen to an active subscription right now.
+ * end_date is a calendar day, and the plan runs through the end of that day.
+ *  - 'none'           still within its period
+ *  - 'renew_free'     Free plan period ended: start the next Free period
+ *  - 'expire_to_free' paid plan period ended: drop to a fresh Free plan until they apply again
+ */
+function expiryAction(subscription, plan, now = Date.now()) {
+  if (!subscription || subscription.status !== 'active' || !subscription.end_date) return 'none'
+  const end = new Date(subscription.end_date)
+  if (Number.isNaN(end.getTime())) return 'none'
+  if (now < end.getTime() + DAY_MS) return 'none'
+  const paid = Boolean(plan) && Number(plan.price_pkr) > 0
+  return paid ? 'expire_to_free' : 'renew_free'
+}
 
 function addDays(date, days) {
   const next = new Date(date)
@@ -51,19 +70,25 @@ async function countLogsSince(userId, since, transaction) {
   })
 }
 
-async function activateFreePlan(userId, transaction) {
+/**
+ * @param {{fresh?: boolean}} options fresh=true starts a clean period (a downgrade or expiry).
+ *   Otherwise usage is backfilled from recent logs so a reinstall keeps its server usage.
+ */
+async function activateFreePlan(userId, transaction, { fresh = false } = {}) {
   const freePlan = await getFreePlan(transaction)
   if (!freePlan) {
     throw new Error('Free plan is not seeded')
   }
 
   const today = new Date()
-  // Backfill from recent logs so reinstall / missing Free rows keep server usage.
-  const lookback = addDays(today, -30)
-  const used = await countLogsSince(userId, lookback, transaction)
-  const capped = freePlan.monthly_limit == null
-    ? used
-    : Math.min(used, freePlan.monthly_limit)
+  let capped = 0
+  if (!fresh) {
+    const lookback = addDays(today, -30)
+    const used = await countLogsSince(userId, lookback, transaction)
+    capped = freePlan.monthly_limit == null
+      ? used
+      : Math.min(used, freePlan.monthly_limit)
+  }
 
   return Subscription.create({
     user_id: userId,
@@ -87,26 +112,39 @@ async function rollUsagePeriodIfExpired(subscription, transaction) {
     if (!withPlan) return subscription
     subscription = withPlan
   }
-  if (!subscription.end_date) return subscription
+  const action = expiryAction(subscription, subscription.plan)
+  if (action === 'none') return subscription
 
-  const end = new Date(subscription.end_date)
-  if (Number.isNaN(end.getTime()) || Date.now() <= end.getTime()) {
-    return subscription
-  }
-
-  if (subscription.cancel_at_period_end) {
-    await subscription.update(
-      { status: 'cancelled', cancel_at_period_end: false },
-      transaction ? { transaction } : undefined
+  if (action === 'expire_to_free') {
+    const txOpt = transaction ? { transaction } : {}
+    // Conditional on still being active so two concurrent requests cannot both expire it.
+    const [changed] = await Subscription.update(
+      {
+        status: subscription.cancel_at_period_end ? 'cancelled' : 'expired',
+        cancel_at_period_end: false,
+      },
+      { where: { id: subscription.id, status: 'active' }, ...txOpt }
     )
-    const free = await activateFreePlan(subscription.user_id, transaction)
+    if (changed === 0) {
+      return Subscription.findOne({
+        where: { user_id: subscription.user_id, status: 'active' },
+        include: [{ model: SubscriptionPlan, as: 'plan' }],
+        order: [['createdAt', 'DESC']],
+        ...txOpt,
+      })
+    }
+    const free = await activateFreePlan(subscription.user_id, transaction, { fresh: true })
+    await notifyUser(
+      subscription.user_id,
+      'Plan ended',
+      `Your ${subscription.plan.name} plan has ended and you are back on Free. Apply for a plan again to get your paid features back.`,
+      'plan',
+    ).catch((err) => console.warn('Plan-ended notice failed:', err.message))
     return Subscription.findByPk(free.id, {
       include: [{ model: SubscriptionPlan, as: 'plan' }],
-      ...(transaction ? { transaction } : {}),
+      ...txOpt,
     })
   }
-
-  if (subscription.plan.monthly_limit == null) return subscription
 
   const today = new Date()
   await subscription.update({
@@ -266,6 +304,7 @@ async function resetUserToFree(userId, transaction) {
 }
 
 module.exports = {
+  expiryAction,
   addDays,
   formatSubscription,
   activateFreePlan,

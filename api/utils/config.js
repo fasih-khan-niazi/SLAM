@@ -2,6 +2,11 @@ const SystemConfig = require('../models/SystemConfig')
 
 const DEFAULT_MERCHANT = '03300490019'
 
+const PIN_ATTEMPT_CAP_MIN = 1
+const PIN_ATTEMPT_CAP_MAX = 5
+const EMERGENCY_MINUTES_MIN = 5
+const EMERGENCY_MINUTES_MAX = 1440
+
 const DEFAULTS = {
   sms_prefix: 'SLAM',
   pin_min_length: 4,
@@ -50,7 +55,7 @@ function publicFields(row) {
     sms_prefix: row.sms_prefix || DEFAULTS.sms_prefix,
     pin_min_length: pinMin,
     pin_max_length: pinMax,
-    pin_attempt_cap: clampInt(row.pin_attempt_cap, 3, 1, 30),
+    pin_attempt_cap: clampInt(row.pin_attempt_cap, 3, PIN_ATTEMPT_CAP_MIN, PIN_ATTEMPT_CAP_MAX),
     pin_window_minutes: clampInt(row.pin_window_minutes, 15, 1, 1440),
     login_attempt_cap: clampInt(row.login_attempt_cap, 3, 1, 30),
     login_window_minutes: clampInt(row.login_window_minutes, 15, 1, 1440),
@@ -76,6 +81,41 @@ function resolveEmergencyMinutes(row) {
   return 60
 }
 
+// Allowed whole-number ranges for admin-editable settings.
+const INTEGER_RULES = {
+  pin_min_length: { min: 4, max: 8, label: 'pin_min_length' },
+  pin_max_length: { min: 4, max: 8, label: 'pin_max_length' },
+  pin_attempt_cap: { min: PIN_ATTEMPT_CAP_MIN, max: PIN_ATTEMPT_CAP_MAX, label: 'pin_attempt_cap' },
+  pin_window_minutes: { min: 1, max: 1440, label: 'pin_window_minutes' },
+  login_attempt_cap: { min: 1, max: 30, label: 'login_attempt_cap' },
+  login_window_minutes: { min: 1, max: 1440, label: 'login_window_minutes' },
+  emergency_interval_minutes: {
+    min: EMERGENCY_MINUTES_MIN,
+    max: EMERGENCY_MINUTES_MAX,
+    label: 'emergency_interval_minutes',
+  },
+}
+
+function isIntegerInRange(value, min, max) {
+  if (value === '' || value === null || typeof value === 'boolean') return false
+  const n = Number(value)
+  return Number.isInteger(n) && n >= min && n <= max
+}
+
+/** Returns human-readable problems; empty when the admin patch is acceptable. */
+function validateConfigPatch(body) {
+  const errors = []
+  for (const [key, rule] of Object.entries(INTEGER_RULES)) {
+    if (body[key] != null && !isIntegerInRange(body[key], rule.min, rule.max)) {
+      errors.push(`${rule.label} must be a whole number from ${rule.min} to ${rule.max}`)
+    }
+  }
+  if (body.sms_prefix != null && !/^[A-Za-z0-9]{2,12}$/.test(String(body.sms_prefix).trim())) {
+    errors.push('sms_prefix must be 2 to 12 letters or digits')
+  }
+  return errors
+}
+
 async function getSystemConfig() {
   const row = await SystemConfig.findOne({ order: [['id', 'ASC']] })
   if (!row) {
@@ -91,6 +131,7 @@ async function getSystemConfig() {
 module.exports = {
   getSystemConfig,
   publicFields,
+  validateConfigPatch,
   DEFAULTS,
   DEFAULT_MERCHANT,
   normalizeMerchant,

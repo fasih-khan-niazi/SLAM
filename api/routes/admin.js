@@ -3,9 +3,11 @@ const { Op } = require('sequelize')
 const { protect, requireAdmin } = require('../middleware/auth')
 const { ok, fail } = require('../utils/http')
 const { approvePayment, rejectPayment } = require('../utils/paymentReview')
+const { validatePlanBody } = require('../utils/planValidation')
 const {
   getSystemConfig,
   publicFields,
+  validateConfigPatch,
   normalizeMerchant,
   envMerchant,
   DEFAULTS,
@@ -168,9 +170,8 @@ router.post('/plans', async (req, res) => {
       is_active,
     } = req.body || {}
 
-    if (!name || String(name).trim() === '') {
-      return fail(res, 400, 'Plan name is required')
-    }
+    const planProblems = validatePlanBody(req.body || {}, { requireName: true })
+    if (planProblems.length) return fail(res, 400, planProblems.join('; '))
 
     let limit = monthly_limit
     if (limit === '' || limit === 'null' || limit === undefined) limit = null
@@ -197,9 +198,14 @@ router.patch('/plans/:id', async (req, res) => {
     const plan = await SubscriptionPlan.findByPk(req.params.id)
     if (!plan) return fail(res, 404, 'Plan not found')
 
+    const planProblems = validatePlanBody(req.body || {})
+    if (planProblems.length) return fail(res, 400, planProblems.join('; '))
+
     const payload = { ...req.body }
     if (payload.monthly_limit === '' || payload.monthly_limit === 'null') {
       payload.monthly_limit = null
+    } else if (payload.monthly_limit != null) {
+      payload.monthly_limit = Number(payload.monthly_limit)
     }
 
     const nextActive = payload.is_active === undefined
@@ -294,6 +300,8 @@ router.patch('/config', async (req, res) => {
     }
 
     const body = req.body || {}
+    const problems = validateConfigPatch(body)
+    if (problems.length) return fail(res, 400, problems.join('; '))
     const fields = {}
 
     if (body.sms_prefix != null) {

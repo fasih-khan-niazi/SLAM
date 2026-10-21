@@ -1,6 +1,6 @@
 const express = require('express')
 const { protect } = require('../middleware/auth')
-const { TrustedNumber } = require('../models')
+const { sequelize, TrustedNumber } = require('../models')
 const { ok, fail } = require('../utils/http')
 const { normalizePhone } = require('../utils/validation')
 const { getActivePlanInfo } = require('../utils/subscription')
@@ -62,10 +62,13 @@ router.put('/trusted-numbers', protect, async (req, res) => {
       })
     }
 
-    await TrustedNumber.destroy({ where: { user_id: req.user.id } })
-    if (cleaned.length) {
-      await TrustedNumber.bulkCreate(cleaned)
-    }
+    // Replace the list in one transaction so a failure can never leave the account with none.
+    await sequelize.transaction(async (transaction) => {
+      await TrustedNumber.destroy({ where: { user_id: req.user.id }, transaction })
+      if (cleaned.length) {
+        await TrustedNumber.bulkCreate(cleaned, { transaction })
+      }
+    })
 
     const rows = await TrustedNumber.findAll({
       where: { user_id: req.user.id },

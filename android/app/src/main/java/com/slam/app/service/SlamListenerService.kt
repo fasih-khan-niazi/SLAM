@@ -127,6 +127,7 @@ class SlamListenerService : Service() {
             return try {
                 context.startForegroundService(Intent(context, SlamListenerService::class.java))
                 ListenerPrefs(context).setListening(true)
+                QuietLocationWorker.captureNow(context)
                 true
             } catch (_: Exception) {
                 ListenerPrefs(context).setListening(false)

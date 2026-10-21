@@ -2,6 +2,7 @@ package com.slam.app.data
 
 import android.content.Context
 import com.slam.app.data.local.SlamDatabase
+import com.slam.app.location.QuietLocationPrefs
 import com.slam.app.location.QuietLocationWorker
 import com.slam.app.security.PinStore
 import com.slam.app.service.SlamListenerService
@@ -15,6 +16,7 @@ class AccountStateWiper(private val context: Context) {
         OutboxScheduler.cancel(context, userId)
         ListenerPrefs(context).clear(userId)
         EmergencyPrefs(context).clear(userId)
+        QuietLocationPrefs(context).clear(userId)
         PinStore.get(context).clear(userId)
         LegacyAccountMigrator.markWiped(context, userId)
         SessionStore(context).wipeAccount(userId)

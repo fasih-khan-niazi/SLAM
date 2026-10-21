@@ -29,8 +29,22 @@ class EmergencyPrefs(private val context: Context) {
             .commit()
     }
 
+    fun scheduledMinutes(): Int = prefs.getInt(scoped(KEY_SCHEDULED), 0)
+
+    fun setScheduledMinutes(minutes: Int) {
+        prefs.edit().putInt(scoped(KEY_SCHEDULED), minutes).commit()
+    }
+
     fun lastRun(): Long = prefs.getLong(scoped(KEY_LAST), 0L)
     fun lastResult(): String = prefs.getString(scoped(KEY_RESULT), "").orEmpty()
+
+    /** Emits on any emergency preference change (on/off, next run, last result). */
+    fun changes(): Flow<Unit> = callbackFlow {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(Unit) }
+        trySend(Unit)
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
 
     fun isOnFlow(): Flow<Boolean> = callbackFlow {
         fun emitCurrent() {
@@ -50,6 +64,7 @@ class EmergencyPrefs(private val context: Context) {
             .remove("$KEY_NEXT:$userId")
             .remove("$KEY_LAST:$userId")
             .remove("$KEY_RESULT:$userId")
+            .remove("$KEY_SCHEDULED:$userId")
             .commit()
     }
 
@@ -62,5 +77,6 @@ class EmergencyPrefs(private val context: Context) {
         const val KEY_NEXT = "next_run"
         const val KEY_LAST = "last_run"
         const val KEY_RESULT = "last_result"
+        const val KEY_SCHEDULED = "scheduled_minutes"
     }
 }

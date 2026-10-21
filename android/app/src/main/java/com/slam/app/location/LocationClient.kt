@@ -36,13 +36,16 @@ class LocationClient(private val context: Context) {
                 return it
             }
             // Last fused fix without forcing a new update.
-            fusedLastLocation()?.let {
-                persist(it)
-                return it
+            fusedLastLocation()?.let { fused ->
+                // Never replace a newer saved fix with an older fused one.
+                val saved = savedFix()
+                if (saved != null && saved.timestamp >= fused.timestamp) return saved
+                persist(fused)
+                return fused
             }
         }
         return if (UiPreferences(context).lastKnownFallbackEnabled.first()) {
-            persistedLastKnown()
+            savedFix()
         } else {
             null
         }
@@ -130,7 +133,7 @@ class LocationClient(private val context: Context) {
         )
     }
 
-    private suspend fun persistedLastKnown(): SlamFix? {
+    private suspend fun savedFix(): SlamFix? {
         val saved = SlamDatabase.get(context).lastLocations().get(AccountIdentity.current(context)) ?: return null
         return SlamFix(
             latitude = saved.latitude,

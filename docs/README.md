@@ -2,6 +2,7 @@
 
 | File | Purpose |
 |------|---------|
+| [current-state.md](current-state.md) | How SLAM behaves today (start here) |
 | [week-1-plan.md](week-1-plan.md) | Phases 1–7 and Phase A |
 | [phase-a.md](phase-a.md) | A1–A3: finish Week 1 (old 5–7) |
 | [week-2-plan.md](week-2-plan.md) | Phases 8–13 |

@@ -115,6 +115,7 @@ fun HomeScreen(
     var formError by remember { mutableStateOf<String?>(null) }
     var openSettingsForBackground by rememberSaveable { mutableStateOf(false) }
 
+    val outOfLocates = !state.unlimited && (state.remaining ?: 1) <= 0
     val prerequisites = state.prerequisites ?: CorePrerequisites.status(context)
     val commandTemplate = "${state.smsPrefix} <PIN> LOCATE"
     val recoverablePin = remember(state.pinReady) { pinStore.recoverablePin() }
@@ -123,6 +124,10 @@ fun HomeScreen(
     suspend fun startListenerWhenReady(): Boolean {
         if (db.trustedNumbers().count() < 1) {
             toast.show("Add at least one trusted number first.", SlamToastTone.WARNING)
+            return false
+        }
+        if (!store.canLocate()) {
+            toast.show("No locates left on this plan, so listening can't start.", SlamToastTone.WARNING)
             return false
         }
         val started = SlamListenerService.start(context)
@@ -334,7 +339,7 @@ fun HomeScreen(
                         message = "Listening has stopped. Upgrade on the SLAM web portal or wait for your plan to renew.",
                         tone = SlamStatusTone.WARNING,
                     )
-                    Spacer(modifier.height(12.dp))
+                    Spacer(Modifier.height(12.dp))
                 }
                 if (state.pendingOutbox > 0) {
                     SlamBanner(
@@ -409,8 +414,12 @@ fun HomeScreen(
                                 Spacer(Modifier.height(12.dp))
                             }
                             SlamPrimaryButton(
-                                text = if (state.listening) "Listening" else "Start listening",
-                                enabled = !state.listening,
+                                text = when {
+                                    state.listening -> "Listening"
+                                    outOfLocates -> "No locates left"
+                                    else -> "Start listening"
+                                },
+                                enabled = !state.listening && !outOfLocates,
                                 onClick = { confirmListen = true },
                             )
                             Spacer(Modifier.height(8.dp))

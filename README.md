@@ -68,6 +68,7 @@ Operator admin: sign in as the seeded admin → http://localhost:5173/admin
 
 | File | Contents |
 |------|----------|
+| [docs/current-state.md](docs/current-state.md) | How SLAM behaves today (start here) |
 | [docs/week-1-plan.md](docs/week-1-plan.md) | Phases 1–7 and Phase A |
 | [docs/phase-a.md](docs/phase-a.md) | A1–A3 to close Week 1 |
 | [docs/week-2-plan.md](docs/week-2-plan.md) | Phases 8–13 |

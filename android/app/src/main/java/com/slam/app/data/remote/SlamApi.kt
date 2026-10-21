@@ -81,6 +81,10 @@ object SlamApiFactory {
     @Volatile
     private var cached: Pair<String, SlamApi>? = null
 
+    /** Set once at app start; sent as X-Device-Id so server-side sign-in limits count per device. */
+    @Volatile
+    var deviceId: String? = null
+
     fun create(baseUrl: String): SlamApi {
         val root = (baseUrl.ifBlank { BuildConfig.API_BASE_URL }).trimEnd('/') + "/"
         cached?.takeIf { it.first == root }?.let { return it.second }
@@ -96,6 +100,15 @@ object SlamApiFactory {
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .callTimeout(30, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val id = deviceId
+                val request = if (id.isNullOrBlank()) {
+                    chain.request()
+                } else {
+                    chain.request().newBuilder().header("X-Device-Id", id).build()
+                }
+                chain.proceed(request)
+            }
             .apply {
                 if (BuildConfig.DEBUG) addInterceptor(
                 HttpLoggingInterceptor().apply {

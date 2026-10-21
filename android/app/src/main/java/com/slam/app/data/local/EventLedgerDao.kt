@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 abstract class EventLedgerDao {
@@ -51,6 +52,10 @@ abstract class EventLedgerDao {
 
     @Query("SELECT * FROM event_outbox WHERE accountId = :accountId AND state = 'PENDING' ORDER BY createdAt LIMIT :limit")
     abstract suspend fun pending(accountId: String, limit: Int = 20): List<OutboxEntity>
+
+    /** Re-emits whenever the outbox changes; used as a live-refresh trigger. */
+    @Query("SELECT COUNT(*) FROM event_outbox WHERE state = 'PENDING'")
+    abstract fun observePendingCount(): Flow<Int>
 
     @Query("UPDATE event_outbox SET state = 'SENT', attempts = attempts + 1, lastAttemptAt = :at WHERE eventId = :eventId")
     abstract suspend fun markSent(eventId: String, at: Long = System.currentTimeMillis())

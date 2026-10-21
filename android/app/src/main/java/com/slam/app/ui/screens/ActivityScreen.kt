@@ -132,13 +132,7 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
                 when {
                     response.isSuccessful -> {
                         notifications = response.body()?.data?.notifications.orEmpty()
-                        notifications.firstOrNull { !it.read && it.kind == "payment" }?.let { note ->
-                            com.slam.app.notify.SlamNotify.paymentUpdate(
-                                getApplication(),
-                                note.title,
-                                note.body,
-                            )
-                        }
+                        surfacePaymentNotifications(accountId, token, api, notifications)
                     }
                     response.code() == 401 -> sessionExpired = true
                 }
@@ -155,6 +149,23 @@ class ActivityViewModel(application: Application) : AndroidViewModel(application
                 syncWarning = syncWarning,
                 sessionExpired = sessionExpired,
             )
+    }
+
+    /** Alert once per payment notification, then mark it read so polling never repeats it. */
+    private suspend fun surfacePaymentNotifications(
+        accountId: String,
+        token: String,
+        api: com.slam.app.data.remote.SlamApi,
+        items: List<NotificationItem>,
+    ) {
+        val shown = com.slam.app.notify.ShownNotifications(getApplication())
+        for (note in items) {
+            if (note.read || note.kind != "payment") continue
+            if (shown.hasShown(accountId, note.id)) continue
+            shown.markShown(accountId, note.id)
+            com.slam.app.notify.SlamNotify.paymentUpdate(getApplication(), note.title, note.body)
+            runCatching { api.markNotificationRead("Bearer $token", note.id) }
+        }
     }
 
     private suspend fun upsertRemote(accountId: String, remote: List<RemoteLocationLog>) {

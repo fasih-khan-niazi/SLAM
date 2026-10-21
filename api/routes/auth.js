@@ -7,6 +7,7 @@ const { protect } = require('../middleware/auth')
 const { rateLimit, loginAttemptGuard, recordFailedLogin, clearFailedLogins } = require('../middleware/rateLimit')
 const { ok, fail } = require('../utils/http')
 const { sendEmail } = require('../utils/email')
+const { currentSecond, issuedBeforePasswordChange } = require('../utils/session')
 const {
   normalizeEmail,
   normalizePhone,
@@ -262,8 +263,15 @@ router.post('/reset-password', async (req, res) => {
 
     const user = await User.findByPk(decoded.id)
     if (!user) return fail(res, 400, 'Reset link is invalid or expired')
+    // Single use: once the password has changed since the link was issued, it is dead.
+    if (issuedBeforePasswordChange(decoded, user)) {
+      return fail(res, 400, 'Reset link is invalid or expired')
+    }
 
-    await user.update({ password_hash: await bcrypt.hash(password, 10) })
+    await user.update({
+      password_hash: await bcrypt.hash(password, 10),
+      password_changed_at: currentSecond(),
+    })
     clearAuthCookie(res)
     return ok(res, 'Password updated', {})
   } catch (err) {
@@ -285,8 +293,14 @@ router.post('/change-password', protect, async (req, res) => {
     const matches = await bcrypt.compare(currentPassword, req.user.password_hash)
     if (!matches) return fail(res, 401, 'Current password is incorrect')
 
-    await req.user.update({ password_hash: await bcrypt.hash(newPassword, 10) })
-    return ok(res, 'Password updated', {})
+    await req.user.update({
+      password_hash: await bcrypt.hash(newPassword, 10),
+      password_changed_at: currentSecond(),
+    })
+    // Every older session is now invalid. Hand this one a fresh token so it keeps working.
+    const token = generateToken(req.user.id)
+    setAuthCookie(res, token)
+    return ok(res, 'Password updated. Other devices have been signed out.', { token })
   } catch (err) {
     console.error('Change password error:', err)
     return fail(res, 500, 'Unable to change password')

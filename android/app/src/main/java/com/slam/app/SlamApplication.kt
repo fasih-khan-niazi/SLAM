@@ -1,7 +1,9 @@
 package com.slam.app
 
 import android.app.Application
+import com.slam.app.data.DeviceId
 import com.slam.app.data.ListenerPrefs
+import com.slam.app.data.remote.SlamApiFactory
 import com.slam.app.notify.SlamNotify
 
 class SlamApplication : Application() {
@@ -11,5 +13,6 @@ class SlamApplication : Application() {
         // The service sets this back to true from its own onCreate.
         ListenerPrefs(this).setServiceActive(false)
         SlamNotify.ensureChannels(this)
+        SlamApiFactory.deviceId = DeviceId.get(this)
     }
 }

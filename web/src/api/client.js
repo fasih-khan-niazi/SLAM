@@ -1,5 +1,29 @@
 const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '')
 
+const DEVICE_KEY = 'slam_device_id'
+
+/** A random id for this browser, sent with every request so sign-in limits count per device. */
+function deviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY)
+    if (!id) {
+      id = (crypto.randomUUID && crypto.randomUUID()) ||
+        `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+      localStorage.setItem(DEVICE_KEY, id)
+    }
+    return id
+  } catch {
+    return ''
+  }
+}
+
+let unauthorizedHandler = null
+
+/** Called when the server rejects a request that carried a sign-in token (expired, replaced, revoked). */
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = handler
+}
+
 export class ApiError extends Error {
   constructor(message, status = 500) {
     super(message)
@@ -13,10 +37,12 @@ async function readJson(response) {
 
 async function request(path, options, attempt = 1) {
   let response
+  const device = deviceId()
   try {
     response = await fetch(`${BASE}${path}`, {
       credentials: 'include',
       ...options,
+      headers: { ...(options.headers || {}), ...(device ? { 'X-Device-Id': device } : {}) },
     })
   } catch {
     if (attempt === 1) {
@@ -27,6 +53,10 @@ async function request(path, options, attempt = 1) {
   }
 
   const json = await readJson(response)
+  const sentToken = Boolean(options.headers && options.headers.Authorization)
+  if (response.status === 401 && sentToken && unauthorizedHandler) {
+    unauthorizedHandler()
+  }
   if (!response.ok || !json?.success) {
     throw new ApiError(json?.message || 'Request failed', response.status)
   }

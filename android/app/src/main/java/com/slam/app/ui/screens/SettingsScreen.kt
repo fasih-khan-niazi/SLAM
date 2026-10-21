@@ -2,6 +2,7 @@ package com.slam.app.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -35,6 +36,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.slam.app.data.AccountIdentity
+import com.slam.app.data.local.SlamDatabase
+import com.slam.app.location.QuietLocationPrefs
+import com.slam.app.location.formatAge
 
 @Composable
 fun SettingsScreen(
@@ -55,6 +64,41 @@ fun SettingsScreen(
     val hapticsEnabled by uiPreferences.hapticsEnabled.collectAsStateWithLifecycle(true)
     val lastKnownEnabled by uiPreferences.lastKnownFallbackEnabled.collectAsStateWithLifecycle(true)
     val darkThemeOn = appearance != AppearanceMode.LIGHT
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val accountId = remember { AccountIdentity.current(context) }
+    val quietPrefs = remember { QuietLocationPrefs(context) }
+    val savedLocation by remember {
+        SlamDatabase.get(context).lastLocations().observe(accountId)
+    }.collectAsStateWithLifecycle(null)
+    var quietRun by remember { mutableStateOf(0L) }
+    var quietResult by remember { mutableStateOf("") }
+    var batteryUnrestricted by remember { mutableStateOf(false) }
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            nowMs = System.currentTimeMillis()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        quietPrefs.changes().collect {
+            quietRun = quietPrefs.lastRun(accountId)
+            quietResult = quietPrefs.lastResult(accountId)
+        }
+    }
+    DisposableEffect(lifecycleOwner) {
+        fun check() {
+            val power = context.getSystemService(PowerManager::class.java)
+            batteryUnrestricted = power?.isIgnoringBatteryOptimizations(context.packageName) == true
+        }
+        check()
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) check()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(Unit) {
         preferBattery = session.preferBattery.first()
@@ -138,6 +182,25 @@ fun SettingsScreen(
                         }
                     },
                 )
+                Spacer(Modifier.height(8.dp))
+                val saved = savedLocation
+                Text(
+                    if (saved == null) {
+                        "No saved location yet. SLAM saves one quietly about every 15 minutes while listening is on."
+                    } else {
+                        val age = formatAge((nowMs - saved.locationTimestamp).coerceAtLeast(0))
+                        val accuracy = saved.accuracyMeters?.let { " (±${it.toInt()} m)" }.orEmpty()
+                        "Saved location: ${if (age == "just now") age else "$age ago"}$accuracy"
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (quietRun > 0L) {
+                    val runAge = formatAge((nowMs - quietRun).coerceAtLeast(0))
+                    Text(
+                        "Last background check: ${if (runAge == "just now") runAge else "$runAge ago"}. $quietResult.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -155,10 +218,33 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(12.dp))
+                Text(
+                    if (batteryUnrestricted) {
+                        "Battery: unrestricted for SLAM."
+                    } else {
+                        "Battery: may be restricted. Background refresh and listening can be delayed or stopped."
+                    },
+                    color = if (batteryUnrestricted) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                )
+                Spacer(Modifier.height(12.dp))
                 SlamPrimaryButton(
-                    text = "Open battery settings",
+                    text = if (batteryUnrestricted) "Open battery settings" else "Allow unrestricted battery",
                     onClick = {
-                        context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                        val direct = Intent(
+                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:${context.packageName}"),
+                        )
+                        val list = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                        if (batteryUnrestricted) {
+                            context.startActivity(list)
+                        } else {
+                            runCatching { context.startActivity(direct) }
+                                .onFailure { context.startActivity(list) }
+                        }
                     },
                 )
                 Spacer(Modifier.height(8.dp))

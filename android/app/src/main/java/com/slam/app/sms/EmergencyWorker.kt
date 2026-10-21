@@ -21,12 +21,9 @@ class EmergencyWorker(
                 inputData.getString(KEY_RUN_ID) ?: id.toString(),
             )
             if (EmergencyPrefs(applicationContext).isOn()) {
-                val fromInput = inputData.getLong(KEY_INTERVAL_MINUTES, 0L)
-                val minutes = if (fromInput >= 5L) {
-                    fromInput
-                } else {
-                    SessionStore(applicationContext).cachedEmergencyMinutes().toLong()
-                }.coerceIn(5L, 24L * 60L)
+                // Always follow the latest synced interval so admin changes reach running chains.
+                val minutes = SessionStore(applicationContext).cachedEmergencyMinutes().toLong()
+                    .coerceIn(5L, 24L * 60L)
                 EmergencyScheduler.scheduleNext(applicationContext, scheduledAccount, minutes)
             }
             Result.success()

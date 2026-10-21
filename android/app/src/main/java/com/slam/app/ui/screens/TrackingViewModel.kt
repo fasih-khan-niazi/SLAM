@@ -17,11 +17,18 @@ import com.slam.app.permissions.CoreStatus
 import com.slam.app.security.PinLockout
 import com.slam.app.security.PinSenderLock
 import com.slam.app.security.PinStore
+import com.slam.app.sms.EmergencyScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -68,6 +75,7 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
                 _state.value = _state.value.copy(bootstrapped = true)
             }
             syncInBackground()
+            observeLiveState()
         }
         viewModelScope.launch {
             session.cachedRemaining.collect { remaining ->
@@ -76,6 +84,31 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
                     unlimited = remaining == Int.MAX_VALUE,
                 )
             }
+        }
+    }
+
+    /**
+     * Keeps the screen in step with the device without a manual refresh. Preference and database
+     * changes trigger a reload at once; the ticker covers things Android does not notify us about
+     * (location services toggled from the shade, PIN lock countdowns, emergency next-run).
+     */
+    private suspend fun observeLiveState() {
+        val app = getApplication<Application>()
+        val db = SlamDatabase.get(app)
+        val ticker = flow {
+            while (true) {
+                emit(Unit)
+                delay(LIVE_TICK_MS)
+            }
+        }
+        merge(
+            ListenerPrefs(app).listeningActiveFlow().map { },
+            EmergencyPrefs(app).changes(),
+            db.trustedNumbers().observeCount().map { },
+            db.eventLedger().observePendingCount().map { },
+            ticker,
+        ).conflate().collect {
+            runCatching { withContext(Dispatchers.IO) { loadFromCache() } }
         }
     }
 
@@ -118,6 +151,7 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
                         config.maintenance,
                         config.paymentsEnabled,
                     )
+                    runCatching { EmergencyScheduler.syncWithConfig(getApplication(), session.cachedEmergencyMinutes()) }
                 }
                 var plan = _state.value.planName
                 var limit = _state.value.limit
@@ -150,26 +184,43 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
         val limit = session.quotaLimit()
         val accountId = AccountIdentity.current(app)
         val pending = SlamDatabase.get(app).eventLedger().pending(accountId).size
-        _state.value = _state.value.copy(
-            planName = session.cachedPlanName(),
-            remaining = remaining.takeUnless { it == Int.MAX_VALUE },
-            unlimited = unlimited || remaining == Int.MAX_VALUE || limit < 0,
-            limit = limit.takeUnless { it < 0 },
-            pinReady = pinStore.hasPin(),
-            pinMinLength = minPin,
-            pinMaxLength = maxPin,
-            smsPrefix = session.cachedSmsPrefix(),
-            emergencyAllowed = session.cachedEmergencyEnabled(),
-            emergencyMinutes = session.cachedEmergencyMinutes(),
-            contacts = SlamDatabase.get(app).trustedNumbers().all(),
-            maxContacts = session.cachedMaxContacts(),
-            prerequisites = CorePrerequisites.status(app),
-            listening = ListenerPrefs(app).isListening() && ListenerPrefs(app).isServiceActive(),
-            emergencyOn = EmergencyPrefs(app).isOn(),
-            emergencyLastResult = EmergencyPrefs(app).lastResult(),
-            emergencyNextRun = EmergencyPrefs(app).nextRun(),
-            pendingOutbox = pending,
-            pinLocks = PinLockout.lockedSenders(app),
-        )
+        // Read everything first, then apply in one atomic update. Several callers run this
+        // concurrently now, and a copy taken before the reads would overwrite newer state.
+        val planName = session.cachedPlanName()
+        val smsPrefix = session.cachedSmsPrefix()
+        val emergencyAllowed = session.cachedEmergencyEnabled()
+        val emergencyMinutes = session.cachedEmergencyMinutes()
+        val contacts = SlamDatabase.get(app).trustedNumbers().all()
+        val maxContacts = session.cachedMaxContacts()
+        val pinLocks = PinLockout.lockedSenders(app)
+        val listenerPrefs = ListenerPrefs(app)
+        val emergencyPrefs = EmergencyPrefs(app)
+        _state.update {
+            it.copy(
+                planName = planName,
+                remaining = remaining.takeUnless { value -> value == Int.MAX_VALUE },
+                unlimited = unlimited || remaining == Int.MAX_VALUE || limit < 0,
+                limit = limit.takeUnless { value -> value < 0 },
+                pinReady = pinStore.hasPin(),
+                pinMinLength = minPin,
+                pinMaxLength = maxPin,
+                smsPrefix = smsPrefix,
+                emergencyAllowed = emergencyAllowed,
+                emergencyMinutes = emergencyMinutes,
+                contacts = contacts,
+                maxContacts = maxContacts,
+                prerequisites = CorePrerequisites.status(app),
+                listening = listenerPrefs.isListening() && listenerPrefs.isServiceActive(),
+                emergencyOn = emergencyPrefs.isOn(),
+                emergencyLastResult = emergencyPrefs.lastResult(),
+                emergencyNextRun = emergencyPrefs.nextRun(),
+                pendingOutbox = pending,
+                pinLocks = pinLocks,
+            )
+        }
+    }
+
+    private companion object {
+        const val LIVE_TICK_MS = 5_000L
     }
 }
