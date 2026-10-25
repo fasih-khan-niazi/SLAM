@@ -28,11 +28,13 @@ Accuracy is reported in meters on purpose, not as High/Medium/Low.
 
 ## Last-known location (quiet refresh)
 
-- While listening is on, a background worker saves a fresh location roughly every 15 minutes. One extra capture runs as soon as listening starts.
-- Android decides the exact moment. 15 minutes is the minimum, and battery savers or Doze can delay a run. The timing is approximate.
+- While listening is on, a background worker saves a fresh location roughly every N minutes (15 by default; admin-configurable, see Admin config below). One extra capture runs as soon as listening starts.
+- Android decides the exact moment. 15 minutes is the floor WorkManager allows for repeating work, and battery savers or Doze can delay a run. The timing is approximate.
+- A running phone picks up a changed interval on its next config sync (app open or resume), the same way Emergency does.
 - A newer saved location is never replaced by an older fused one.
 - Settings shows the saved location's age and what the last background check did, and offers the unrestricted-battery request, which makes runs more reliable.
 - The saved location is used only when live location fails. Turn it off with "Use last known location" in Settings.
+- This cannot run while the phone's own Location Services toggle is off — Android gives no app any location provider in that state, live or saved-new. The existing last-known fallback is the closest this can get.
 
 ## Quota and listening
 
@@ -66,12 +68,19 @@ Edited at web `/admin` → Config and served to clients by `GET /api/config`. Ou
 | Login window (minutes) | 1 to 1440 | 15 |
 | Emergency available | on/off | on |
 | Emergency interval (minutes) | 5 to 1440 | 60 |
+| Quiet-location interval (minutes) | 15 to 1440 | 15 |
 | Maintenance, payments, email | on/off | off, on, on |
 | JazzCash and EasyPaisa numbers | 10 to 15 digits | set in admin |
 
+## Admins
+
+- Operator/admin is `role=admin` on `User`. Three ways to become one: the `ADMIN_EMAIL`/`ADMIN_PASSWORD` env-seeded account, the three hardcoded extra admins in `seedAdmin()`, or being promoted by an existing admin from `/admin` → Users → "Promote to admin".
+- Every admin account always carries the **Premium** plan (unlimited locates, 20 contacts, history). This is enforced on every API boot (`ensureAdminsOnPremium`) and immediately on promotion, so it self-heals even if changed directly in the database.
+- A user can't promote themselves or an account that's already an admin.
+
 ## Payments and email
 
-A user picks a plan, pays by JazzCash or EasyPaisa, and submits the transaction ID and a screenshot (stored on Cloudinary). Every admin account is emailed at its registered address on submit, and the user is emailed on approve or reject. Email needs `EMAIL_USER` and `EMAIL_PASS` set on the API and `email_enabled` on.
+A user picks a plan, pays by JazzCash or EasyPaisa, and submits the transaction ID and a screenshot (stored on Cloudinary). The user is emailed on approve or reject. On submit, every **opted-in** admin is emailed — all admins by default, except the env-seeded `ADMIN_EMAIL` account, which is excluded on purpose (it's the owner/default inbox, not meant to be paged on every submission). This is the `notify_admin_emails` flag on `User`, visible on the admin Users page as "No email alerts" under the Admin role chip; there's no portal UI to toggle it yet, only the one seeded exception. Email needs `EMAIL_USER` and `EMAIL_PASS` set on the API and `email_enabled` on.
 
 ## Not built, on purpose
 
