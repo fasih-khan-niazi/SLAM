@@ -82,6 +82,7 @@ async function ensureSystemConfigColumns() {
     ['login_window_minutes', 15],
     ['emergency_interval_hours', 1],
     ['emergency_interval_minutes', 60],
+    ['quiet_location_interval_minutes', 15],
   ]
   for (const [name, defaultValue] of intColumns) {
     if (!table[name]) {
@@ -263,6 +264,7 @@ async function seedSystemConfig() {
     emergency_enabled: true,
     emergency_interval_minutes: 60,
     emergency_interval_hours: 1,
+    quiet_location_interval_minutes: 15,
     easypaisa_account: merchantDefault,
     jazzcash_account: merchantDefault,
   })
@@ -327,6 +329,22 @@ async function seedAdmin() {
       password: extraPassword,
       resetPassword: process.env.RESET_EXTRA_ADMIN_PASSWORDS === '1',
     })
+  }
+}
+
+/**
+ * Admin accounts always carry Premium, however they became admin (seeded at boot or
+ * promoted from the portal). Runs on every boot so it self-heals any drift.
+ */
+async function ensureAdminsOnPremium() {
+  const { ensureAdminPremium } = require('../utils/subscription')
+  const admins = await User.findAll({ where: { role: 'admin' } })
+  for (const admin of admins) {
+    try {
+      await ensureAdminPremium(admin.id)
+    } catch (err) {
+      console.error(`Admin Premium ensure failed for ${admin.email}:`, err.message)
+    }
   }
 }
 
@@ -423,6 +441,7 @@ async function syncDatabase() {
     await seedPlans()
     await seedAdmin()
     await seedSystemConfig()
+    await ensureAdminsOnPremium()
   } catch (err) {
     console.error('Database connection failed:', err.message)
     process.exit(1)

@@ -28,7 +28,7 @@ const {
   pauseActiveSubscriptions,
   resumePausedSubscriptions,
 } = require('../utils/accountStatus')
-const { ensureActiveSubscription } = require('../utils/subscription')
+const { ensureActiveSubscription, ensureAdminPremium } = require('../utils/subscription')
 
 const router = express.Router()
 
@@ -313,6 +313,9 @@ router.patch('/config', async (req, res) => {
     if (body.pin_window_minutes != null) fields.pin_window_minutes = Number(body.pin_window_minutes)
     if (body.login_attempt_cap != null) fields.login_attempt_cap = Number(body.login_attempt_cap)
     if (body.login_window_minutes != null) fields.login_window_minutes = Number(body.login_window_minutes)
+    if (body.quiet_location_interval_minutes != null) {
+      fields.quiet_location_interval_minutes = Number(body.quiet_location_interval_minutes)
+    }
     if (body.emergency_interval_minutes != null) {
       const n = Number(body.emergency_interval_minutes)
       fields.emergency_interval_minutes = Number.isFinite(n)
@@ -402,6 +405,25 @@ function assertMutableTarget(actor, target) {
     throw err
   }
 }
+
+router.post('/users/:id/promote', async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id)
+    if (!user) return fail(res, 404, 'User not found')
+    if (user.role === 'admin') return fail(res, 400, 'User is already an admin')
+    if (user.id === req.user.id) return fail(res, 400, 'Cannot change your own account this way')
+
+    await user.update({ role: 'admin' })
+    await ensureAdminPremium(user.id)
+    await user.reload()
+    return ok(res, 'User promoted to admin and moved to the Premium plan', {
+      user: publicAdminUser(user),
+    })
+  } catch (err) {
+    console.error('Admin promote error:', err)
+    return fail(res, err.status || 500, err.message || 'Unable to promote user')
+  }
+})
 
 router.post('/users/:id/suspend', async (req, res) => {
   try {

@@ -59,6 +59,13 @@ async function getFreePlan(transaction) {
   })
 }
 
+async function getPremiumPlan(transaction) {
+  return SubscriptionPlan.findOne({
+    where: { name: 'Premium' },
+    ...(transaction ? { transaction } : {}),
+  })
+}
+
 async function countLogsSince(userId, since, transaction) {
   const where = { user_id: userId }
   if (since) {
@@ -303,12 +310,52 @@ async function resetUserToFree(userId, transaction) {
   }, transaction ? { transaction } : undefined)
 }
 
+/**
+ * Admin accounts always carry Premium. No-op if already on an active Premium
+ * subscription; otherwise cancels other active/pending rows and starts a fresh one.
+ * Called on every boot for all admin accounts, and right after a user is promoted.
+ */
+async function ensureAdminPremium(userId, transaction) {
+  const premiumPlan = await getPremiumPlan(transaction)
+  if (!premiumPlan) return null
+
+  const existing = await Subscription.findOne({
+    where: { user_id: userId, status: 'active' },
+    include: [{ model: SubscriptionPlan, as: 'plan' }],
+    ...(transaction ? { transaction } : {}),
+  })
+  if (existing && existing.plan_id === premiumPlan.id) return existing
+
+  await Subscription.update(
+    { status: 'cancelled' },
+    {
+      where: {
+        user_id: userId,
+        status: ['active', 'pending_payment', 'pending_approval'],
+      },
+      ...(transaction ? { transaction } : {}),
+    }
+  )
+
+  const today = new Date()
+  return Subscription.create({
+    user_id: userId,
+    plan_id: premiumPlan.id,
+    status: 'active',
+    requests_used: 0,
+    start_date: today,
+    end_date: addDays(today, 30),
+  }, transaction ? { transaction } : undefined)
+}
+
 module.exports = {
   expiryAction,
   addDays,
   formatSubscription,
   activateFreePlan,
   getFreePlan,
+  getPremiumPlan,
+  ensureAdminPremium,
   getCurrentSubscription,
   getPendingUpgrade,
   getActivePlanInfo,

@@ -53,6 +53,16 @@ describe('publicFields', () => {
     })
     assert.equal(out.emergency_interval_minutes, 5)
   })
+
+  it('defaults quiet_location_interval_minutes to 15 when unset', () => {
+    assert.equal(publicFields({}).quiet_location_interval_minutes, 15)
+  })
+
+  it('clamps quiet_location_interval_minutes into 15-1440', () => {
+    assert.equal(publicFields({ quiet_location_interval_minutes: 1 }).quiet_location_interval_minutes, 15)
+    assert.equal(publicFields({ quiet_location_interval_minutes: 5000 }).quiet_location_interval_minutes, 1440)
+    assert.equal(publicFields({ quiet_location_interval_minutes: 45 }).quiet_location_interval_minutes, 45)
+  })
 })
 
 describe('normalizeMerchant', () => {
@@ -108,6 +118,18 @@ describe('validateConfigPatch', () => {
 
   it('ignores fields that are not present', () => {
     assert.deepEqual(validateConfigPatch({ maintenance: true }), [])
+  })
+
+  it('accepts quiet location minutes from 15 to 1440', () => {
+    for (const n of [15, 60, 1440]) {
+      assert.deepEqual(validateConfigPatch({ quiet_location_interval_minutes: n }), [])
+    }
+  })
+
+  it('rejects quiet location minutes outside 15-1440 or non-integers', () => {
+    for (const n of [0, 5, 14, 1441, 7.5, 'soon', '']) {
+      assert.equal(validateConfigPatch({ quiet_location_interval_minutes: n }).length, 1, `value ${n}`)
+    }
   })
 })
 

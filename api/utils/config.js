@@ -6,6 +6,9 @@ const PIN_ATTEMPT_CAP_MIN = 1
 const PIN_ATTEMPT_CAP_MAX = 5
 const EMERGENCY_MINUTES_MIN = 5
 const EMERGENCY_MINUTES_MAX = 1440
+// WorkManager's periodic jobs cannot repeat faster than 15 minutes, so this is a hard floor.
+const QUIET_LOCATION_MINUTES_MIN = 15
+const QUIET_LOCATION_MINUTES_MAX = 1440
 
 const DEFAULTS = {
   sms_prefix: 'SLAM',
@@ -21,6 +24,7 @@ const DEFAULTS = {
   email_enabled: true,
   emergency_enabled: true,
   emergency_interval_minutes: 60,
+  quiet_location_interval_minutes: 15,
   easypaisa_account: DEFAULT_MERCHANT,
   jazzcash_account: DEFAULT_MERCHANT,
 }
@@ -65,6 +69,12 @@ function publicFields(row) {
     email_enabled: Boolean(row.email_enabled),
     emergency_enabled: row.emergency_enabled !== false,
     emergency_interval_minutes: resolveEmergencyMinutes(row),
+    quiet_location_interval_minutes: clampInt(
+      row.quiet_location_interval_minutes,
+      15,
+      QUIET_LOCATION_MINUTES_MIN,
+      QUIET_LOCATION_MINUTES_MAX,
+    ),
     easypaisa_account: normalizeMerchant(row.easypaisa_account, easyFallback),
     jazzcash_account: normalizeMerchant(row.jazzcash_account, jazzFallback),
   }
@@ -93,6 +103,11 @@ const INTEGER_RULES = {
     min: EMERGENCY_MINUTES_MIN,
     max: EMERGENCY_MINUTES_MAX,
     label: 'emergency_interval_minutes',
+  },
+  quiet_location_interval_minutes: {
+    min: QUIET_LOCATION_MINUTES_MIN,
+    max: QUIET_LOCATION_MINUTES_MAX,
+    label: 'quiet_location_interval_minutes',
   },
 }
 
