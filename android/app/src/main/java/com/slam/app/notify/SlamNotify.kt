@@ -81,6 +81,16 @@ object SlamNotify {
         show(context, CHANNEL_ACCOUNT, id = 2104, title = title, body = body)
     }
 
+    fun locationsDropped(context: Context, count: Int) {
+        show(
+            context,
+            CHANNEL_ACCOUNT,
+            id = 2107,
+            title = "Some locations weren't delivered",
+            body = "$count saved location${if (count == 1) " couldn't" else "s couldn't"} be uploaded because your plan ran out of locates, and too much time passed to keep retrying.",
+        )
+    }
+
     fun trustedContactsTrimmed(context: Context, removedCount: Int) {
         show(
             context,

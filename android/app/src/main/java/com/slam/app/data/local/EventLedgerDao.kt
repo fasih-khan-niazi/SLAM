@@ -72,6 +72,22 @@ abstract class EventLedgerDao {
     )
     abstract suspend fun requeueFailedLastKnown(accountId: String): Int
 
+    /**
+     * A 403 (plan-period limit reached) is a transient, quota-dependent rejection, not a permanent
+     * one - it gets its own state so it's never conflated with [markFailed] (which [requeueFailedLastKnown]
+     * and the 7-day prune in [pruneCompleted] both treat as permanently done).
+     */
+    @Query("UPDATE event_outbox SET state = 'QUOTA_BLOCKED', attempts = attempts + 1, lastAttemptAt = :at WHERE eventId = :eventId")
+    abstract suspend fun markQuotaBlocked(eventId: String, at: Long = System.currentTimeMillis())
+
+    /** Retry quota-blocked entries - call only when there's a real signal quota has room again. */
+    @Query("UPDATE event_outbox SET state = 'PENDING' WHERE accountId = :accountId AND state = 'QUOTA_BLOCKED'")
+    abstract suspend fun requeueQuotaBlocked(accountId: String): Int
+
+    /** Entries that have waited on quota for too long: give up on them (they then prune normally). */
+    @Query("UPDATE event_outbox SET state = 'FAILED' WHERE accountId = :accountId AND state = 'QUOTA_BLOCKED' AND createdAt < :before")
+    abstract suspend fun giveUpStaleQuotaBlocked(accountId: String, before: Long): Int
+
     @Query("DELETE FROM event_outbox WHERE state IN ('SENT', 'FAILED') AND createdAt < :before")
     abstract suspend fun pruneCompleted(before: Long)
 
