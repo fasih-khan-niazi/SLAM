@@ -351,6 +351,7 @@ async function ensureAdminPremium(userId, transaction) {
 module.exports = {
   expiryAction,
   addDays,
+  rollUsagePeriodIfExpired,
   formatSubscription,
   activateFreePlan,
   getFreePlan,

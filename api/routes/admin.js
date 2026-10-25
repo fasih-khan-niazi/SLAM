@@ -25,6 +25,7 @@ const {
   ACCOUNT_SUSPENDED,
   ACCOUNT_DEACTIVATED,
   normalizeAccountStatus,
+  isAccountBlocked,
   pauseActiveSubscriptions,
   resumePausedSubscriptions,
 } = require('../utils/accountStatus')
@@ -42,6 +43,8 @@ function publicAdminUser(user) {
     phone: user.phone,
     role: user.role,
     account_status: user.account_status || 'active',
+    // Only meaningful for role=admin: whether this admin gets emailed on admin events.
+    notify_admin_emails: user.role === 'admin' ? Boolean(user.notify_admin_emails) : null,
     created_at: user.createdAt,
   }
 }
@@ -564,10 +567,28 @@ router.patch('/subscriptions/:id', async (req, res) => {
       if (!allowed.includes(body.status)) {
         return fail(res, 400, 'Invalid subscription status')
       }
+      // Setting a subscription active while the account itself is still blocked would leave the
+      // two out of sync (the user still can't sign in, but their plan would read "active"). Use
+      // the unsuspend/reactivate actions instead, which bring both back together correctly.
+      if (body.status === 'active') {
+        const owner = await User.findByPk(sub.user_id)
+        if (owner && isAccountBlocked(owner)) {
+          return fail(
+            res,
+            400,
+            `Cannot set this subscription active while the account is ${normalizeAccountStatus(owner.account_status)}. Unsuspend or reactivate the account instead.`
+          )
+        }
+      }
       fields.status = body.status
     }
     if (body.end_date !== undefined) {
       fields.end_date = body.end_date ? new Date(body.end_date) : null
+    }
+    const nextStart = body.start_date !== undefined ? body.start_date : sub.start_date
+    const nextEnd = fields.end_date !== undefined ? fields.end_date : sub.end_date
+    if (nextStart && nextEnd && new Date(nextEnd) < new Date(nextStart)) {
+      return fail(res, 400, 'end_date cannot be before start_date')
     }
     await sub.update(fields)
     return ok(res, 'Subscription updated', {

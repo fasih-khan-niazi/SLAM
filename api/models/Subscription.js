@@ -43,6 +43,13 @@ const Subscription = sequelize.define('Subscription', {
     allowNull: false,
     defaultValue: false,
   },
+  // Set when a suspend/deactivate pauses this subscription; cleared on resume. Lets the resumed
+  // subscription's end_date shift forward by however long it was paused, so a paying user doesn't
+  // lose days they already paid for while their account was blocked.
+  paused_at: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  },
 }, {
   tableName: 'subscriptions',
   timestamps: true,
