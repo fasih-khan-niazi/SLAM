@@ -131,6 +131,9 @@ export function AdminUsersPage() {
                     <td>{u.phone}</td>
                     <td>
                       <StatusChip tone={u.role === 'admin' ? 'success' : 'neutral'}>{u.role}</StatusChip>
+                      {u.role === 'admin' && u.notify_admin_emails === false ? (
+                        <div className="muted" style={{ fontSize: '0.78rem', marginTop: 4 }}>No email alerts</div>
+                      ) : null}
                     </td>
                     <td>
                       <StatusChip tone={statusTone(status)}>{status}</StatusChip>
