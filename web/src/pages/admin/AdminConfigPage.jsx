@@ -24,6 +24,8 @@ const PIN_CAP_MIN = 1
 const PIN_CAP_MAX = 5
 const EMERGENCY_MIN = 5
 const EMERGENCY_MAX = 1440
+const QUIET_LOCATION_MIN = 15
+const QUIET_LOCATION_MAX = 1440
 
 function rangeError(value, min, max, what) {
   const n = Number(value)
@@ -57,6 +59,9 @@ export function AdminConfigPage() {
         ?? (form.emergency_interval_hours != null ? form.emergency_interval_hours * 60 : 60))
     : 60
   const emergencyError = form ? rangeError(emergencyValue, EMERGENCY_MIN, EMERGENCY_MAX, 'Minutes between SMS') : ''
+  const quietLocationError = form
+    ? rangeError(form.quiet_location_interval_minutes ?? 15, QUIET_LOCATION_MIN, QUIET_LOCATION_MAX, 'Quiet capture interval')
+    : ''
   const pinMinError = form ? rangeError(form.pin_min_length ?? 4, 4, 8, 'PIN min length') : ''
   const pinMaxError = form ? rangeError(form.pin_max_length ?? 6, 4, 8, 'PIN max length') : ''
   const pinWindowError = form ? rangeError(form.pin_window_minutes ?? 15, 1, 1440, 'PIN window') : ''
@@ -66,7 +71,7 @@ export function AdminConfigPage() {
     ? 'Prefix must be 2 to 12 letters or digits.'
     : ''
   const hasErrors = Boolean(
-    pinCapError || emergencyError || pinMinError || pinMaxError ||
+    pinCapError || emergencyError || quietLocationError || pinMinError || pinMaxError ||
     pinWindowError || loginCapError || loginWindowError || prefixError
   )
 
@@ -149,6 +154,25 @@ export function AdminConfigPage() {
             />
             <p className="muted" style={{ marginTop: 8, fontSize: '0.85rem' }}>
               Between 5 minutes and 1440 (one day). Phones schedule the next emergency SMS after each send. Default is 60.
+            </p>
+          </section>
+
+          <section className="admin-section">
+            <h2>Quiet location capture</h2>
+            <p className="section-lede">While listening is on, the phone quietly saves a last-known location in the background on this interval.</p>
+            <Field
+              id="quiet_location_minutes"
+              label="Minutes between background checks"
+              type="number"
+              integerMode="positive"
+              min={QUIET_LOCATION_MIN}
+              max={QUIET_LOCATION_MAX}
+              error={quietLocationError}
+              value={String(form.quiet_location_interval_minutes ?? 15)}
+              onChange={(v) => set('quiet_location_interval_minutes', v === '' ? '' : Number(v))}
+            />
+            <p className="muted" style={{ marginTop: 8, fontSize: '0.85rem' }}>
+              Between 15 minutes (the OS floor for repeating background work) and 1440 (one day). Default is 15.
             </p>
           </section>
 
