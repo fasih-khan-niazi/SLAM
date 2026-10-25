@@ -13,6 +13,12 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
+// Optional: point debug builds at a local API, e.g. slam.apiBaseUrl=http://192.168.1.10:3000 in local.properties.
+val localProperties = Properties()
+rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { localProperties.load(it) }
+val localApiBaseUrl: String? = localProperties.getProperty("slam.apiBaseUrl")
+    ?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
+
 android {
     namespace = "com.slam.app"
     compileSdk = 35
@@ -39,6 +45,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (localApiBaseUrl != null) {
+                buildConfigField("String", "API_BASE_URL", "\"$localApiBaseUrl\"")
+            }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
