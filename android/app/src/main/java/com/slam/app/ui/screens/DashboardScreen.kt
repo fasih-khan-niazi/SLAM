@@ -203,9 +203,14 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 val contactCap = (live?.maxContacts ?: 1).coerceAtLeast(1)
                 runCatching {
                     val contactDao = SlamDatabase.get(getApplication()).trustedNumbers()
-                    contactDao.all(AccountIdentity.current(getApplication()))
-                        .drop(contactCap)
-                        .forEach { contactDao.delete(it) }
+                    val overCap = contactDao.all(AccountIdentity.current(getApplication())).drop(contactCap)
+                    overCap.forEach { contactDao.delete(it) }
+                    // This used to be silent. A plan downgrade removing someone's trusted
+                    // contacts without telling them is exactly the kind of thing that should
+                    // never happen quietly, so tell them the same way quota/location events do.
+                    if (overCap.isNotEmpty()) {
+                        com.slam.app.notify.SlamNotify.trustedContactsTrimmed(getApplication(), overCap.size)
+                    }
                 }
                 val remainingAfter = session.cachedRemaining.first()
                 val unlimited = remainingAfter == Int.MAX_VALUE

@@ -81,6 +81,16 @@ object SlamNotify {
         show(context, CHANNEL_ACCOUNT, id = 2104, title = title, body = body)
     }
 
+    fun trustedContactsTrimmed(context: Context, removedCount: Int) {
+        show(
+            context,
+            CHANNEL_ACCOUNT,
+            id = 2106,
+            title = "Trusted number${if (removedCount == 1) "" else "s"} removed",
+            body = "Your plan changed, so $removedCount trusted number${if (removedCount == 1) " was" else "s were"} removed to fit the new limit.",
+        )
+    }
+
     fun turnLocationOn(context: Context) {
         show(
             context,
