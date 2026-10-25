@@ -46,6 +46,13 @@ const User = sequelize.define('User', {
     type: DataTypes.DATE,
     allowNull: true,
   },
+  // Admins only: whether this account gets emailed on admin events (new payment, etc).
+  // True for everyone by default; the seeded ADMIN_EMAIL account is the one deliberate exception.
+  notify_admin_emails: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
+  },
 }, {
   tableName: 'users',
   timestamps: true,

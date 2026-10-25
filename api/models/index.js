@@ -270,7 +270,7 @@ async function seedSystemConfig() {
   })
 }
 
-async function ensureAdminUser({ email, password, name, phone, resetPassword = false }) {
+async function ensureAdminUser({ email, password, name, phone, resetPassword = false, notifyAdminEmails = true }) {
   const normalized = String(email || '').trim().toLowerCase()
   if (!normalized || !password) return null
 
@@ -283,12 +283,14 @@ async function ensureAdminUser({ email, password, name, phone, resetPassword = f
       phone: phone || '03000000000',
       role: 'admin',
       account_status: 'active',
+      notify_admin_emails: notifyAdminEmails,
     })
     console.log(`Admin account seeded: ${normalized}`)
   } else {
     const patch = {}
     if (user.role !== 'admin') patch.role = 'admin'
     if (user.account_status !== 'active') patch.account_status = 'active'
+    if (user.notify_admin_emails !== notifyAdminEmails) patch.notify_admin_emails = notifyAdminEmails
     if (resetPassword) patch.password_hash = await bcrypt.hash(password, 10)
     if (Object.keys(patch).length) {
       await user.update(patch)
@@ -309,11 +311,15 @@ async function seedAdmin() {
   const email = process.env.ADMIN_EMAIL
   const password = process.env.ADMIN_PASSWORD
   if (email && password) {
+    // This is the default/owner admin seeded from env. It does not get admin notification
+    // emails (new-payment alerts, etc) - the other admins below do, and so does any admin
+    // created later by promoting a user from the portal.
     await ensureAdminUser({
       email,
       password,
       name: 'Administrator',
       phone: '03000000000',
+      notifyAdminEmails: false,
     })
   }
 
@@ -375,6 +381,13 @@ async function ensureUserPinColumns() {
       defaultValue: 'active',
     })
   }
+  if (!table.notify_admin_emails) {
+    await qi.addColumn('users', 'notify_admin_emails', {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    })
+  }
 }
 
 async function ensureSubscriptionPausedStatus() {
@@ -399,6 +412,12 @@ async function ensureSubscriptionPausedStatus() {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+      })
+    }
+    if (!table.paused_at) {
+      await qi.addColumn('subscriptions', 'paused_at', {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
       })
     }
   } catch (err) {
