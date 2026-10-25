@@ -41,7 +41,13 @@ Accuracy is reported in meters on purpose, not as High/Medium/Low.
 - Plans: Free 5 locates and 1 contact; Basic 50 locates and 5 contacts (PKR 299); Premium unlimited locates and 20 contacts with history (PKR 699). Limits come from the database and can be edited by an operator.
 - Every locate counts, including each emergency send.
 - At zero locates the app stops listening, and Start listening is disabled ("No locates left") until the period renews or the plan changes.
-- The cached quota is enforced offline.
+- The cached quota is enforced offline. A locate the server rejects for being over quota is retried later (when the phone next sees room on the plan), not resent blindly or dropped — after 30 days of no room it gives up and tells the user instead of losing it silently.
+
+## Suspend / deactivate and subscriptions
+
+- Suspending or deactivating a user pauses their active subscription (`status='paused'`) rather than leaving it active while they're blocked.
+- On unsuspend/reactivate, the subscription's `end_date` shifts forward by however many whole days it was paused, so a paying user doesn't lose days they already paid for. A same-day suspend-then-resume shifts nothing (no whole day passed). After resuming, the normal expiry check still runs, so a subscription paused for longer than its remaining period correctly drops to Free or renews instead of coming back "active" with a stale end date.
+- An admin cannot set a subscription to `active` via `PATCH /admin/subscriptions/:id` while its owner's account is still suspended/deactivated — unsuspend or reactivate the account instead, which keeps the two in sync.
 
 ## Emergency mode
 
