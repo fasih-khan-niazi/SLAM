@@ -170,6 +170,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                         config.pinMaxLength,
                         config.maintenance,
                         config.paymentsEnabled,
+                        config.quietLocationIntervalMinutes,
                     )
                 }
 

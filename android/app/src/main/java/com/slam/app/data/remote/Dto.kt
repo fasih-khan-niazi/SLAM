@@ -111,6 +111,7 @@ data class PublicConfig(
     @SerializedName("emergency_interval_minutes") val emergencyIntervalMinutes: Int? = null,
     /** Legacy field; prefer [emergencyIntervalMinutes]. */
     @SerializedName("emergency_interval_hours") val emergencyIntervalHours: Int? = null,
+    @SerializedName("quiet_location_interval_minutes") val quietLocationIntervalMinutes: Int? = null,
 ) {
     fun resolvedEmergencyMinutes(): Int {
         emergencyIntervalMinutes?.takeIf { it in 5..1440 }?.let { return it }

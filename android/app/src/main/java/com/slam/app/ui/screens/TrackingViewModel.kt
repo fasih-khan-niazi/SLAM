@@ -150,8 +150,15 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
                         config.pinMaxLength,
                         config.maintenance,
                         config.paymentsEnabled,
+                        config.quietLocationIntervalMinutes,
                     )
                     runCatching { EmergencyScheduler.syncWithConfig(getApplication(), session.cachedEmergencyMinutes()) }
+                    runCatching {
+                        com.slam.app.location.QuietLocationWorker.syncWithConfig(
+                            getApplication(),
+                            session.cachedQuietLocationMinutes(),
+                        )
+                    }
                 }
                 var plan = _state.value.planName
                 var limit = _state.value.limit

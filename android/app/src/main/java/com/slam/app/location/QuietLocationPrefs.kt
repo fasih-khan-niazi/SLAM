@@ -22,7 +22,18 @@ class QuietLocationPrefs(context: Context) {
     fun lastResult(accountId: String): String = prefs.getString("$KEY_RESULT:$accountId", "").orEmpty()
 
     fun clear(accountId: String) {
-        prefs.edit().remove("$KEY_RUN:$accountId").remove("$KEY_RESULT:$accountId").apply()
+        prefs.edit()
+            .remove("$KEY_RUN:$accountId")
+            .remove("$KEY_RESULT:$accountId")
+            .remove("$KEY_SCHEDULED:$accountId")
+            .apply()
+    }
+
+    /** The interval (minutes) WorkManager was last told to repeat on, so a config sync can detect a change. */
+    fun scheduledMinutes(accountId: String): Int = prefs.getInt("$KEY_SCHEDULED:$accountId", 0)
+
+    fun setScheduledMinutes(accountId: String, minutes: Int) {
+        prefs.edit().putInt("$KEY_SCHEDULED:$accountId", minutes).apply()
     }
 
     fun changes(): Flow<Unit> = callbackFlow {
@@ -36,5 +47,6 @@ class QuietLocationPrefs(context: Context) {
         const val PREFS = "slam_quiet_location"
         const val KEY_RUN = "last_run"
         const val KEY_RESULT = "last_result"
+        const val KEY_SCHEDULED = "scheduled_minutes"
     }
 }
