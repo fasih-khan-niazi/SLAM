@@ -67,21 +67,20 @@ async function sendEmail(to, subject, text, html) {
   }
 }
 
-/** Email every active admin account (role=admin, not suspended/deactivated). */
+/**
+ * Email every active admin account that opts in (role=admin, not suspended/deactivated,
+ * notify_admin_emails=true). The default/owner admin seeded from ADMIN_EMAIL is excluded
+ * by default (see seedAdmin in models/index.js); every other admin, including a future
+ * promoted one, is included unless changed.
+ */
 async function sendEmailToAdmins(subject, text, html) {
   const { User } = require('../models')
   const { isAccountBlocked } = require('./accountStatus')
-  const admins = await User.findAll({ where: { role: 'admin' } })
+  const admins = await User.findAll({ where: { role: 'admin', notify_admin_emails: true } })
   const recipients = admins
     .filter((admin) => !isAccountBlocked(admin))
     .map((admin) => admin.email)
     .filter(Boolean)
-
-  // Always include ADMIN_EMAIL seed inbox if present (covers env-only inbox).
-  const seedInbox = String(process.env.ADMIN_EMAIL || '').trim()
-  if (seedInbox && !recipients.includes(seedInbox)) {
-    recipients.push(seedInbox)
-  }
 
   return sendEmail(recipients, subject, text, html)
 }

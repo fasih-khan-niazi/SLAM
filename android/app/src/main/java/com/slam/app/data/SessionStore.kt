@@ -35,6 +35,7 @@ class SessionStore(private val context: Context) {
     val pinWindowMinutes: Flow<Int> = accountFlow("pin_window_minutes", 15)
     val emergencyEnabled: Flow<Boolean> = accountFlow("emergency_feature", true)
     val emergencyIntervalMinutes: Flow<Int> = accountFlow("emergency_minutes", 60)
+    val quietLocationIntervalMinutes: Flow<Int> = accountFlow("quiet_location_minutes", 15)
     val maxContacts: Flow<Int> = accountFlow("max_contacts", 1)
     val smsPrefix: Flow<String> = accountFlow("sms_prefix", "SLAM")
     val pinMinLength: Flow<Int> = accountFlow("pin_min_length", 4)
@@ -64,7 +65,6 @@ class SessionStore(private val context: Context) {
                 migrateLegacyPreferences(it, userId)
             }
         }
-        LegacyAccountMigrator.migrate(context, userId)
     }
 
     suspend fun setApiBaseUrl(url: String) {
@@ -85,12 +85,14 @@ class SessionStore(private val context: Context) {
         pinMaxLength: Int? = null,
         maintenance: Boolean? = null,
         paymentsEnabled: Boolean? = null,
+        quietLocationMinutes: Int? = null,
     ) {
         val cap = pinCap?.coerceIn(1, 5) ?: 3
         val window = windowMinutes?.takeIf { it in 1..1440 } ?: 15
         val minutes = emergencyMinutes?.takeIf { it in 5..1440 } ?: 60
         val minPin = pinMinLength?.coerceIn(4, 8) ?: 4
         val maxPin = pinMaxLength?.coerceIn(minPin, 8) ?: 6
+        val quietMinutes = quietLocationMinutes?.takeIf { it in 15..1440 } ?: 15
         context.dataStore.edit {
             it[accountInt("pin_attempt_cap")] = cap
             it[accountInt("pin_window_minutes")] = window
@@ -100,6 +102,7 @@ class SessionStore(private val context: Context) {
                 smsPrefix?.trim()?.uppercase()?.takeIf { prefix -> prefix.matches(Regex("[A-Z0-9]{2,12}")) } ?: "SLAM"
             it[accountInt("pin_min_length")] = minPin
             it[accountInt("pin_max_length")] = maxPin
+            it[accountInt("quiet_location_minutes")] = quietMinutes
             if (maintenance != null) {
                 it[accountBoolean("maintenance")] = maintenance
             }
@@ -118,6 +121,8 @@ class SessionStore(private val context: Context) {
     suspend fun cachedEmergencyEnabled(): Boolean = emergencyEnabled.first()
 
     suspend fun cachedEmergencyMinutes(): Int = emergencyIntervalMinutes.first()
+
+    suspend fun cachedQuietLocationMinutes(): Int = quietLocationIntervalMinutes.first()
 
     suspend fun cachedMaxContacts(): Int = maxContacts.first()
     suspend fun cachedSmsPrefix(): String = smsPrefix.first()

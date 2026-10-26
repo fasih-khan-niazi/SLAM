@@ -144,6 +144,10 @@ export function adminReactivateUser(token, id) {
   return api(`/api/admin/users/${id}/reactivate`, { method: 'POST', token })
 }
 
+export function adminPromoteUser(token, id) {
+  return api(`/api/admin/users/${id}/promote`, { method: 'POST', token })
+}
+
 export function adminListSubscriptions(token, { status, userId } = {}) {
   const params = new URLSearchParams()
   if (status) params.set('status', status)

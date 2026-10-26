@@ -27,9 +27,11 @@ object SessionWarmup {
                     config.pinMaxLength,
                     config.maintenance,
                     config.paymentsEnabled,
+                    config.quietLocationIntervalMinutes,
                 )
                 LoginLockoutStore(context).applyConfig(config.loginAttemptCap, config.loginWindowMinutes)
                 EmergencyScheduler.syncWithConfig(context, session.cachedEmergencyMinutes())
+                com.slam.app.location.QuietLocationWorker.syncWithConfig(context, session.cachedQuietLocationMinutes())
             }
             if (token.isBlank()) return@runCatching
             val accountId = AccountIdentity.current(context)

@@ -197,9 +197,13 @@ fun HomeScreen(
                 normalized = normalized,
             ),
         )
-        TrustedContactsSync.push(context)
         viewModel.reloadLocal()
-        toast.show("Trusted number added", SlamToastTone.SUCCESS)
+        // Saved locally either way; only the toast depends on whether the cloud copy made it.
+        if (TrustedContactsSync.push(context)) {
+            toast.show("Trusted number added", SlamToastTone.SUCCESS)
+        } else {
+            toast.show("Saved on this phone. Couldn't sync yet - will retry.", SlamToastTone.WARNING)
+        }
         return true
     }
 
@@ -428,11 +432,23 @@ fun HomeScreen(
                                 style = SlamButtonStyle.DESTRUCTIVE,
                                 enabled = state.listening,
                                 onClick = {
+                                    // Emergency cannot run without listening, so stopping listening always
+                                    // stops it too (SlamListenerService.stop does this). Say so when it was
+                                    // actually on, instead of a toast that hides a real side effect.
+                                    val wasEmergencyOn = state.emergencyOn
                                     SlamListenerService.stop(context)
                                     EmergencyPrefs(context).setOn(false)
                                     EmergencyScheduler.stop(context)
                                     viewModel.refreshDeviceState()
-                                    scope.launch { toast.show("Listening stopped") }
+                                    scope.launch {
+                                        toast.show(
+                                            if (wasEmergencyOn) {
+                                                "Listening and Emergency both stopped"
+                                            } else {
+                                                "Listening stopped"
+                                            },
+                                        )
+                                    }
                                 },
                             )
                             Spacer(Modifier.height(8.dp))

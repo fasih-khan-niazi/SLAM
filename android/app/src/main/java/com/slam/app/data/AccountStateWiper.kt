@@ -18,7 +18,6 @@ class AccountStateWiper(private val context: Context) {
         EmergencyPrefs(context).clear(userId)
         QuietLocationPrefs(context).clear(userId)
         PinStore.get(context).clear(userId)
-        LegacyAccountMigrator.markWiped(context, userId)
         SessionStore(context).wipeAccount(userId)
         SlamDatabase.close(context, userId)
     }

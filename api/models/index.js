@@ -82,6 +82,7 @@ async function ensureSystemConfigColumns() {
     ['login_window_minutes', 15],
     ['emergency_interval_hours', 1],
     ['emergency_interval_minutes', 60],
+    ['quiet_location_interval_minutes', 15],
   ]
   for (const [name, defaultValue] of intColumns) {
     if (!table[name]) {
@@ -263,12 +264,13 @@ async function seedSystemConfig() {
     emergency_enabled: true,
     emergency_interval_minutes: 60,
     emergency_interval_hours: 1,
+    quiet_location_interval_minutes: 15,
     easypaisa_account: merchantDefault,
     jazzcash_account: merchantDefault,
   })
 }
 
-async function ensureAdminUser({ email, password, name, phone, resetPassword = false }) {
+async function ensureAdminUser({ email, password, name, phone, resetPassword = false, notifyAdminEmails = true }) {
   const normalized = String(email || '').trim().toLowerCase()
   if (!normalized || !password) return null
 
@@ -281,12 +283,14 @@ async function ensureAdminUser({ email, password, name, phone, resetPassword = f
       phone: phone || '03000000000',
       role: 'admin',
       account_status: 'active',
+      notify_admin_emails: notifyAdminEmails,
     })
     console.log(`Admin account seeded: ${normalized}`)
   } else {
     const patch = {}
     if (user.role !== 'admin') patch.role = 'admin'
     if (user.account_status !== 'active') patch.account_status = 'active'
+    if (user.notify_admin_emails !== notifyAdminEmails) patch.notify_admin_emails = notifyAdminEmails
     if (resetPassword) patch.password_hash = await bcrypt.hash(password, 10)
     if (Object.keys(patch).length) {
       await user.update(patch)
@@ -307,11 +311,15 @@ async function seedAdmin() {
   const email = process.env.ADMIN_EMAIL
   const password = process.env.ADMIN_PASSWORD
   if (email && password) {
+    // This is the default/owner admin seeded from env. It does not get admin notification
+    // emails (new-payment alerts, etc) - the other admins below do, and so does any admin
+    // created later by promoting a user from the portal.
     await ensureAdminUser({
       email,
       password,
       name: 'Administrator',
       phone: '03000000000',
+      notifyAdminEmails: false,
     })
   }
 
@@ -327,6 +335,22 @@ async function seedAdmin() {
       password: extraPassword,
       resetPassword: process.env.RESET_EXTRA_ADMIN_PASSWORDS === '1',
     })
+  }
+}
+
+/**
+ * Admin accounts always carry Premium, however they became admin (seeded at boot or
+ * promoted from the portal). Runs on every boot so it self-heals any drift.
+ */
+async function ensureAdminsOnPremium() {
+  const { ensureAdminPremium } = require('../utils/subscription')
+  const admins = await User.findAll({ where: { role: 'admin' } })
+  for (const admin of admins) {
+    try {
+      await ensureAdminPremium(admin.id)
+    } catch (err) {
+      console.error(`Admin Premium ensure failed for ${admin.email}:`, err.message)
+    }
   }
 }
 
@@ -357,6 +381,13 @@ async function ensureUserPinColumns() {
       defaultValue: 'active',
     })
   }
+  if (!table.notify_admin_emails) {
+    await qi.addColumn('users', 'notify_admin_emails', {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    })
+  }
 }
 
 async function ensureSubscriptionPausedStatus() {
@@ -381,6 +412,12 @@ async function ensureSubscriptionPausedStatus() {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+      })
+    }
+    if (!table.paused_at) {
+      await qi.addColumn('subscriptions', 'paused_at', {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
       })
     }
   } catch (err) {
@@ -423,6 +460,7 @@ async function syncDatabase() {
     await seedPlans()
     await seedAdmin()
     await seedSystemConfig()
+    await ensureAdminsOnPremium()
   } catch (err) {
     console.error('Database connection failed:', err.message)
     process.exit(1)

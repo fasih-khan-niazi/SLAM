@@ -51,9 +51,16 @@ class QuietLocationWorker(
         const val KEY_ACCOUNT_ID = "account_id"
         private const val UNIQUE = "slam-quiet-location"
 
-        fun schedule(context: Context, accountId: String = AccountIdentity.current(context)) {
-            val request = PeriodicWorkRequestBuilder<QuietLocationWorker>(15, TimeUnit.MINUTES)
-                .setInitialDelay(15, TimeUnit.MINUTES)
+        private const val MIN_MINUTES = 15L
+        private const val MAX_MINUTES = 24L * 60L
+
+        /** (Re)schedules the periodic job on the interval cached in [SessionStore]. */
+        suspend fun schedule(context: Context, accountId: String = AccountIdentity.current(context)) {
+            // WorkManager cannot repeat periodic work faster than 15 minutes; the admin config is
+            // clamped to that floor too (SessionStore.cachedQuietLocationMinutes / api/utils/config.js).
+            val minutes = SessionStore(context).cachedQuietLocationMinutes().toLong().coerceIn(MIN_MINUTES, MAX_MINUTES)
+            val request = PeriodicWorkRequestBuilder<QuietLocationWorker>(minutes, TimeUnit.MINUTES)
+                .setInitialDelay(minutes, TimeUnit.MINUTES)
                 .setInputData(
                     androidx.work.Data.Builder().putString(KEY_ACCOUNT_ID, accountId).build(),
                 )
@@ -63,6 +70,19 @@ class QuietLocationWorker(
                 ExistingPeriodicWorkPolicy.UPDATE,
                 request,
             )
+            QuietLocationPrefs(context).setScheduledMinutes(accountId, minutes.toInt())
+        }
+
+        /**
+         * Reconciles the running periodic job with the synced interval, same shape as
+         * [com.slam.app.sms.EmergencyScheduler.syncWithConfig]. Call after product config syncs.
+         */
+        suspend fun syncWithConfig(context: Context, minutes: Int, accountId: String = AccountIdentity.current(context)) {
+            if (!ListenerPrefs(context).isListening()) return
+            val desired = minutes.coerceIn(MIN_MINUTES.toInt(), MAX_MINUTES.toInt())
+            if (QuietLocationPrefs(context).scheduledMinutes(accountId) != desired) {
+                schedule(context, accountId)
+            }
         }
 
         /** One quiet capture right away (for example when listening starts); never stacks up. */

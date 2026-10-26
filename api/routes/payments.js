@@ -30,8 +30,12 @@ const upload = multer({
 
 router.post('/payments/submit', protect, upload.single('screenshot'), async (req, res) => {
   try {
-    const { subscription_id, payment_method, transaction_id } = req.body
+    const { subscription_id, payment_method } = req.body
     const user_id = req.user.id
+    // Trim once, up front, and use this everywhere below (the duplicate check and the saved row
+    // must agree on what "the same transaction ID" means, or a leading/trailing-space variant of
+    // an existing ID slips past the check and hits the DB's unique constraint instead).
+    const transaction_id = String(req.body.transaction_id || '').trim()
 
     if (!subscription_id || !payment_method || !transaction_id) {
       return fail(res, 400, 'subscription_id, payment_method and transaction_id are required')
@@ -94,7 +98,7 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
       subscription_id: subscription.id,
       amount_pkr: subscription.plan.price_pkr,
       payment_method,
-      transaction_id: String(transaction_id).trim(),
+      transaction_id,
       screenshot_url: screenshotUrl,
       status: 'pending',
     })
@@ -141,6 +145,12 @@ router.post('/payments/submit', protect, upload.single('screenshot'), async (req
     )
   } catch (err) {
     console.error('Payment submit error:', err)
+    // Belt and braces alongside the upfront duplicate check above: two near-simultaneous
+    // submissions of the same (or whitespace-variant) transaction ID can both pass that check
+    // and race to the DB's unique constraint. Whoever loses the race gets a clean 400, not a 500.
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      return fail(res, 400, 'This transaction ID has already been submitted')
+    }
     return fail(res, 500, 'Unable to submit payment')
   }
 })

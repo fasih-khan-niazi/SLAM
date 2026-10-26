@@ -40,8 +40,7 @@ object PinLockout {
         val db = SlamDatabase.get(context).failedPins()
         return db.lockedSenders(accountId, since, cap).mapNotNull { sender ->
             val latest = db.latestFailAt(accountId, sender, since) ?: return@mapNotNull null
-            val unlockAt = latest + window
-            val remaining = unlockAt - now
+            val remaining = remainingLockMs(latest, window, now)
             if (remaining <= 0L) null else PinSenderLock(sender, remaining)
         }
     }
@@ -53,6 +52,12 @@ object PinLockout {
         val since = System.currentTimeMillis() - window
         val fails = SlamDatabase.get(context).failedPins()
             .countSinceSender(accountId, sender, since)
-        return fails >= cap
+        return isLocked(fails, cap)
     }
+
+    /** True once a sender's failures within the window reach the cap. Pure, so it's directly testable. */
+    fun isLocked(failCountInWindow: Int, cap: Int): Boolean = failCountInWindow >= cap
+
+    /** Milliseconds left until a sender's lock expires; non-positive once it has. Pure, directly testable. */
+    fun remainingLockMs(latestFailAt: Long, window: Long, now: Long): Long = (latestFailAt + window) - now
 }

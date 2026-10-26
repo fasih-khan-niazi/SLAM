@@ -78,6 +78,11 @@ const SystemConfig = sequelize.define('SystemConfig', {
     allowNull: true,
     defaultValue: 1,
   },
+  quiet_location_interval_minutes: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 15,
+  },
   easypaisa_account: {
     type: DataTypes.STRING(32),
     allowNull: true,

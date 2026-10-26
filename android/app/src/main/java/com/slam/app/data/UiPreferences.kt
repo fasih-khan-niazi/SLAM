@@ -10,18 +10,16 @@ import kotlinx.coroutines.flow.map
 
 private val Context.uiDataStore by preferencesDataStore("slam_ui_preferences")
 
+// SLAM only ever offers Light or Dark - it does not follow the OS theme. Any older stored value
+// other than DARK (including a legacy "SYSTEM" string from before this was simplified) means LIGHT.
 enum class AppearanceMode {
-    SYSTEM,
     LIGHT,
     DARK,
 }
 
 class UiPreferences(private val context: Context) {
     val appearance: Flow<AppearanceMode> = context.uiDataStore.data.map { prefs ->
-        when (runCatching { AppearanceMode.valueOf(prefs[KEY_APPEARANCE].orEmpty()) }.getOrNull()) {
-            AppearanceMode.DARK -> AppearanceMode.DARK
-            AppearanceMode.LIGHT, AppearanceMode.SYSTEM, null -> AppearanceMode.LIGHT
-        }
+        if (prefs[KEY_APPEARANCE] == AppearanceMode.DARK.name) AppearanceMode.DARK else AppearanceMode.LIGHT
     }
 
     val hapticsEnabled: Flow<Boolean> = context.uiDataStore.data.map {
@@ -34,19 +32,14 @@ class UiPreferences(private val context: Context) {
 
     suspend fun migrateAppearanceIfNeeded() {
         context.uiDataStore.edit { prefs ->
-            val raw = prefs[KEY_APPEARANCE].orEmpty()
-            if (raw.isBlank() || raw == AppearanceMode.SYSTEM.name) {
+            if (prefs[KEY_APPEARANCE] != AppearanceMode.DARK.name) {
                 prefs[KEY_APPEARANCE] = AppearanceMode.LIGHT.name
             }
         }
     }
 
     suspend fun setAppearance(mode: AppearanceMode) {
-        val resolved = when (mode) {
-            AppearanceMode.DARK -> AppearanceMode.DARK
-            AppearanceMode.LIGHT, AppearanceMode.SYSTEM -> AppearanceMode.LIGHT
-        }
-        context.uiDataStore.edit { it[KEY_APPEARANCE] = resolved.name }
+        context.uiDataStore.edit { it[KEY_APPEARANCE] = mode.name }
     }
 
     suspend fun setDarkTheme(enabled: Boolean) {

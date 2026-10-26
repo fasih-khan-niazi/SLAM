@@ -35,7 +35,7 @@ class SlamListenerService : Service() {
     override fun onCreate() {
         super.onCreate()
         ListenerPrefs(this).setServiceActive(true)
-        QuietLocationWorker.schedule(this)
+        scope.launch { QuietLocationWorker.schedule(this@SlamListenerService) }
         ensureChannel()
         startInForeground()
     }
@@ -54,7 +54,7 @@ class SlamListenerService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        QuietLocationWorker.schedule(this)
+        scope.launch { QuietLocationWorker.schedule(this@SlamListenerService) }
         startInForeground()
         val from = intent?.getStringExtra(EXTRA_FROM)
         val body = intent?.getStringExtra(EXTRA_BODY)

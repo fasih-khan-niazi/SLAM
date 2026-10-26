@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import {
   adminDeactivateUser,
   adminListUsers,
+  adminPromoteUser,
   adminReactivateUser,
   adminSuspendUser,
   adminUnsuspendUser,
@@ -69,6 +70,7 @@ export function AdminUsersPage() {
       else if (confirm.action === 'unsuspend') res = await adminUnsuspendUser(token, confirm.user.id)
       else if (confirm.action === 'deactivate') res = await adminDeactivateUser(token, confirm.user.id)
       else if (confirm.action === 'reactivate') res = await adminReactivateUser(token, confirm.user.id)
+      else if (confirm.action === 'promote') res = await adminPromoteUser(token, confirm.user.id)
       setNotice(res?.message || 'Account updated.')
       setConfirm(null)
       await load()
@@ -85,7 +87,7 @@ export function AdminUsersPage() {
       <p className="eyebrow">Operations</p>
       <h1>Users</h1>
       <p className="lede">
-        Search accounts and suspend or deactivate them. Profile fields cannot be edited by admins.
+        Search accounts, suspend or deactivate them, or promote one to admin. Profile fields cannot be edited by admins.
       </p>
 
       <div className="admin-toolbar">
@@ -129,6 +131,9 @@ export function AdminUsersPage() {
                     <td>{u.phone}</td>
                     <td>
                       <StatusChip tone={u.role === 'admin' ? 'success' : 'neutral'}>{u.role}</StatusChip>
+                      {u.role === 'admin' && u.notify_admin_emails === false ? (
+                        <div className="muted" style={{ fontSize: '0.78rem', marginTop: 4 }}>No email alerts</div>
+                      ) : null}
                     </td>
                     <td>
                       <StatusChip tone={statusTone(status)}>{status}</StatusChip>
@@ -136,6 +141,20 @@ export function AdminUsersPage() {
                     <td>
                       {canManage(u) ? (
                         <div className="stack" style={{ gap: 6 }}>
+                          {status === 'active' ? (
+                            <Button
+                              variant="secondary"
+                              onClick={() => setConfirm({
+                                action: 'promote',
+                                user: u,
+                                title: 'Promote to admin?',
+                                message: `Make ${u.email} an admin? They get full admin access and are moved to the Premium plan.`,
+                                confirmLabel: 'Promote',
+                              })}
+                            >
+                              Promote to admin
+                            </Button>
+                          ) : null}
                           {status === 'active' ? (
                             <Button
                               variant="secondary"

@@ -14,8 +14,25 @@ class OutboxDispatcher(private val context: Context) {
         val token = session.token.first()
         if (token.isBlank()) return false
         val dao = SlamDatabase.get(context).eventLedger()
-        // One-time recovery for older clients that stored accuracy=LAST_KNOWN (API 400).
+        // One-time recovery for older clients that stored accuracy=LAST_KNOWN (API 400). This never
+        // touches QUOTA_BLOCKED entries (separate state below), so it can't resurrect those.
         runCatching { dao.requeueFailedLastKnown(accountId) }
+
+        // Quota-blocked entries (403, plan-period limit reached) are retried only when there's an
+        // actual signal there's room again - not on every flush, which would hammer the server
+        // while a plan stays exhausted.
+        val hasHeadroom = session.cachedRemaining.first().let { it == Int.MAX_VALUE || it > 0 }
+        if (hasHeadroom) {
+            runCatching { dao.requeueQuotaBlocked(accountId) }
+        }
+        // An entry still waiting on quota after a month is unlikely to ever clear (cancelled plan,
+        // abandoned account) - give up and tell the user instead of holding it forever.
+        val quotaStaleCutoff = System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1_000L
+        val goneStale = runCatching { dao.giveUpStaleQuotaBlocked(accountId, quotaStaleCutoff) }.getOrDefault(0)
+        if (goneStale > 0) {
+            com.slam.app.notify.SlamNotify.locationsDropped(context, goneStale)
+        }
+
         val api = SlamApiFactory.create(BuildConfig.API_BASE_URL)
         for (entry in dao.pending(accountId)) {
             try {
@@ -48,7 +65,7 @@ class OutboxDispatcher(private val context: Context) {
                     dao.markAttempt(entry.eventId)
                     return false
                 } else if (response.code() == 403) {
-                    dao.markFailed(entry.eventId)
+                    dao.markQuotaBlocked(entry.eventId)
                     runCatching {
                         val me = api.me("Bearer $token")
                         val data = me.body()?.data
