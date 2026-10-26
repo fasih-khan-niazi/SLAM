@@ -65,7 +65,6 @@ class SessionStore(private val context: Context) {
                 migrateLegacyPreferences(it, userId)
             }
         }
-        LegacyAccountMigrator.migrate(context, userId)
     }
 
     suspend fun setApiBaseUrl(url: String) {
